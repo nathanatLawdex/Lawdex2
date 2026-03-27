@@ -212,7 +212,7 @@ export default function HomePage() {
                     <Badge>Lawyer-only access</Badge>
                     <Badge>Practical precedents</Badge>
                   </div>
-                  <h1>A private cheat-sheet library that makes practice easier, not heavier.</h1>
+                  <h1>A shared library for lawyers.</h1>
                   <p className="muted spaced">
                     Lawyers create member accounts, upload redacted advice, checklists, precedents, and matter notes,
                     and search a growing knowledge base built for real-world practice.
