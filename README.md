@@ -1,24 +1,34 @@
-# CounselCache
+# CounselCache – auth + real data edition
 
-A front-end MVP for a private lawyer knowledge-sharing platform.
+This version adds:
+- real account creation and sign in via Supabase Auth
+- real resource records saved in a Supabase table
+- optional file upload to a Supabase Storage bucket called `resources`
 
-## What this includes
-- marketing/home page
-- lawyer login screen
-- searchable resource library
-- anonymous upload flow
-- admin moderation queue
+## 1. Add files to GitHub
+Replace your current project files with the contents of this folder.
 
-## Deploy on Vercel
-1. Create a GitHub repository.
-2. Upload all files from this folder.
-3. Import the repository into Vercel.
-4. Deploy.
+## 2. Create a Supabase project
+In Supabase:
+- create a project
+- Authentication -> Providers -> Email -> enable Email
+- SQL Editor -> run `supabase/schema.sql`
+- Storage -> create a public bucket called `resources`
 
-## Important
-This is a front-end prototype only. It does not yet include:
-- real authentication
-- real database
-- real file uploads
-- moderation backend
-- legal terms / privacy pages
+## 3. Add environment variables in Vercel
+Add these in Vercel project settings:
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+## 4. Redeploy
+Redeploy in Vercel. Then test:
+- create account
+- sign in
+- upload a resource
+- check that the record appears in Library
+
+## Important next steps before public launch
+- add admin approval workflow
+- restrict signups to approved domains or invite-only access
+- add contributor warranties, privacy policy, and terms of use
+- add moderation and reporting tools
