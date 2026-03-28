@@ -423,7 +423,7 @@ export default function Page() {
                     <Badge>Lawyer-only access</Badge>
                     <Badge>Real auth & data</Badge>
                   </div>
-                  <h1 style={heroTitleStyle}>A private cheat-sheet library that makes practice easier, not harder.</h1>
+                  <h1 style={heroTitleStyle}>Precedent Sharing for Lawyers.</h1>
                   <p style={heroTextStyle}>Lawyers create accounts, upload redacted advice, precedents, and checklists, and search a practical resource bank built for day-to-day work.</p>
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 24 }}>
                     <Button onClick={() => setPage(session ? "library" : "auth")}>Explore the library</Button>
