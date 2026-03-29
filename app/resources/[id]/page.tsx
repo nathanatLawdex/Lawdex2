@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 import type { AdminDecision, Comment, Profile, Resource, Revision } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
 
-export default function ResourceDetail({ params }: { params: Promise<{ id: string }> | { id: string } }) {
+export default function ResourceDetail({ params }: { params: { id: string } }) {
   const [resourceId, setResourceId] = useState('');
   const [resource, setResource] = useState<Resource | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -23,8 +23,8 @@ export default function ResourceDetail({ params }: { params: Promise<{ id: strin
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.resolve(params).then((p) => setResourceId(p.id));
-  }, [params]);
+  setResourceId(params.id);
+}, [params]);
 
   async function load() {
     if (!supabase || !resourceId) return;
