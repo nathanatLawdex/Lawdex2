@@ -1,199 +1,98 @@
-'use client';
-
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
-import type { Profile, Resource, Revision } from '@/lib/types';
+import { createServerSupabase } from '@/lib/server-supabase';
 import { formatDate } from '@/lib/utils';
+import type { Resource } from '@/lib/types';
 
-export default function AdminPage() {
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [resources, setResources] = useState<Resource[]>([]);
-  const [revisions, setRevisions] = useState<Revision[]>([]);
-  const [reason, setReason] = useState<Record<string, string>>({});
-  const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+export default async function HomePage() {
+  const supabase = createServerSupabase();
 
-  async function load() {
-    if (!supabase) return;
-    const { data: authData } = await supabase.auth.getUser();
-    const user = authData.user;
-    if (!user) {
-      setError('Sign in first.');
-      return;
-    }
-    const { data: prof } = await supabase
-      .from('profiles')
-      .select('id, full_name, role')
-      .eq('id', user.id)
-      .single();
-    setProfile(prof as Profile);
+  let resources: Resource[] = [];
 
-    const { data: resourceData } = await supabase
+  if (supabase) {
+    const { data } = await supabase
       .from('resources')
       .select('*')
       .order('created_at', { ascending: false });
 
-    const { data: revisionData } = await supabase
-      .from('revisions')
-      .select('*')
-      .eq('status', 'pending')
-      .order('created_at', { ascending: false });
-
-    setResources((resourceData || []) as Resource[]);
-    setRevisions((revisionData || []) as Revision[]);
-  }
-
-  useEffect(() => {
-    load();
-  }, []);
-
-  async function decide(revision: Revision, decision: 'accepted' | 'rejected') {
-    if (!supabase) return;
-    setError(null);
-    const note = reason[revision.id] || null;
-
-    try {
-      const { data: authData } = await supabase.auth.getUser();
-      const user = authData.user;
-      if (!user) throw new Error('Sign in first.');
-      if (profile?.role !== 'admin') {
-        throw new Error(
-          'This page only works for admin users. Promote your user role in the profiles table.'
-        );
-      }
-
-      const { error: revError } = await supabase
-        .from('revisions')
-        .update({ status: decision, note: note || revision.note })
-        .eq('id', revision.id);
-
-      if (revError) throw revError;
-
-      if (decision === 'accepted') {
-        const { error: resourceError } = await supabase
-          .from('resources')
-          .update({
-            current_content: revision.content,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', revision.resource_id);
-
-        if (resourceError) throw resourceError;
-      }
-
-      const { error: decisionError } = await supabase
-        .from('admin_decisions')
-        .insert({
-          resource_id: revision.resource_id,
-          revision_id: revision.id,
-          decision,
-          reason: note,
-          decided_by: user.id,
-          decider_label: profile?.full_name || user.email || 'Admin',
-        });
-
-      if (decisionError) throw decisionError;
-
-      setMessage(`Revision ${decision}.`);
-      load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to record decision.');
-    }
+    resources = (data || []) as Resource[];
   }
 
   return (
     <main className="main">
       <div className="container stack">
-        <div className="pill-row">
-          <Link href="/" className="ghost-btn">
-            ← Back to Pardella
-          </Link>
-        </div>
+        <section className="hero card card-pad">
+          <div className="pill-row">
+            <span className="pill">Pardella</span>
+            <span className="pill">Collaborative legal discussion</span>
+            <span className="pill">Originals preserved</span>
+          </div>
 
-        <div className="card card-pad">
-          <h1 className="section-title">Admin review</h1>
-          <p className="section-copy">
-            Accept or reject proposed revisions. Decisions are logged publicly for
-            signed-in users and can be disputed in comments on the resource page.
+          <h1 className="hero-title">
+            A living library of legal analysis, objections, updates, and better answers.
+          </h1>
+
+          <p className="hero-copy">
+            Pardella is a collaborative platform for discussing law openly, refining advice,
+            preserving original source documents, and keeping working copies current as new
+            authorities, objections, and reasoning emerge.
           </p>
 
-          {profile?.role !== 'admin' && (
-            <div className="notice">
-              Your current role is <strong>{profile?.role || 'unknown'}</strong>. To use
-              admin actions, open the <code>profiles</code> table in Supabase and change
-              your role to <code>admin</code>.
+          <div className="hero-actions">
+            <Link href="/upload" className="action-btn">
+              Upload a document
+            </Link>
+            <Link href="/admin" className="ghost-btn">
+              Admin review
+            </Link>
+          </div>
+        </section>
+
+        <section className="card card-pad">
+          <div className="split">
+            <div>
+              <h2 className="section-title">Latest uploads</h2>
+              <p className="section-copy">
+                Most recent to oldest. Open any resource to view the original document,
+                working copy, comments, revisions, and decision history.
+              </p>
+            </div>
+          </div>
+
+          {resources.length ? (
+            <div className="resource-list">
+              {resources.map((resource) => (
+                <Link
+                  key={resource.id}
+                  href={`/resources/${resource.id}`}
+                  className="resource-card"
+                >
+                  <div className="resource-meta">
+                    <span>{resource.area}</span>
+                    <span>·</span>
+                    <span>{resource.jurisdiction}</span>
+                    <span>·</span>
+                    <span>{resource.type}</span>
+                  </div>
+
+                  <h3 className="resource-title">{resource.title}</h3>
+
+                  {resource.summary && (
+                    <p className="resource-summary">{resource.summary}</p>
+                  )}
+
+                  <div className="resource-footer">
+                    <span>{formatDate(resource.created_at)}</span>
+                    <span>Open discussion →</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="empty">
+              No resources yet. Upload the first document to start the library.
             </div>
           )}
-
-          {error && <div className="error-box">{error}</div>}
-          {message && <div className="success-box">{message}</div>}
-        </div>
-
-        <div className="card card-pad">
-          <h2 className="section-title" style={{ fontSize: 24 }}>
-            Pending revisions
-          </h2>
-
-          <div className="revision-list">
-            {revisions.length ? (
-              revisions.map((revision) => {
-                const resource = resources.find((r) => r.id === revision.resource_id);
-
-                return (
-                  <div className="revision-item" key={revision.id}>
-                    <div className="split">
-                      <strong>{resource?.title || 'Resource'}</strong>
-                      <span className="tiny muted">{formatDate(revision.created_at)}</span>
-                    </div>
-
-                    <div className="tiny muted">
-                      By {revision.author_label || 'Member'}
-                    </div>
-
-                    {revision.note && <p className="muted">{revision.note}</p>}
-
-                    <textarea className="textarea" readOnly value={revision.content} />
-
-                    <textarea
-                      className="textarea"
-                      placeholder="Decision reason"
-                      value={reason[revision.id] || ''}
-                      onChange={(e) =>
-                        setReason((prev) => ({
-                          ...prev,
-                          [revision.id]: e.target.value,
-                        }))
-                      }
-                    />
-
-                    <div className="hero-actions">
-                      <button
-                        className="action-btn"
-                        onClick={() => decide(revision, 'accepted')}
-                      >
-                        Accept changes
-                      </button>
-
-                      <button
-                        className="ghost-btn"
-                        onClick={() => decide(revision, 'rejected')}
-                      >
-                        Reject changes
-                      </button>
-
-                      <Link className="soft-btn" href={`/resources/${revision.resource_id}`}>
-                        Open discussion
-                      </Link>
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="empty">No pending revisions.</div>
-            )}
-          </div>
-        </div>
+        </section>
       </div>
     </main>
   );
