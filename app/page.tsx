@@ -8,6 +8,365 @@ import type { Resource } from '@/lib/types';
 
 type View = 'home' | 'library' | 'upload' | 'login';
 
+function HeaderButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={active ? 'action-btn' : 'ghost-btn'}
+      type="button"
+    >
+      {children}
+    </button>
+  );
+}
+
+function HomeView({
+  resources,
+  loading,
+  onOpenLibrary,
+}: {
+  resources: Resource[];
+  loading: boolean;
+  onOpenLibrary: () => void;
+}) {
+  const latestUploads = resources.slice(0, 8);
+
+  return (
+    <>
+      <section className="hero card card-pad">
+        <div className="pill-row">
+          <span className="pill">Living documents</span>
+          <span className="pill">Tracked admin decisions</span>
+          <span className="pill">Open legal discussion</span>
+        </div>
+
+        <div className="hero-grid">
+          <div className="stack">
+            <h1 className="hero-title">
+              Pardella turns legal work into living documents, not static uploads.
+            </h1>
+
+            <p className="hero-copy">
+              Members upload original materials, maintain a live editable working copy,
+              debate objections in comments, and keep every admin acceptance or rejection visible.
+              The goal is practical legal accuracy, current case law awareness, and transparent refinement.
+            </p>
+
+            <div className="hero-actions">
+              <button className="action-btn" type="button" onClick={onOpenLibrary}>
+                See latest uploads
+              </button>
+              <Link href="/admin" className="ghost-btn">
+                Admin decisions
+              </Link>
+            </div>
+          </div>
+
+          <div className="stats-grid">
+            <div className="stat-box">
+              <div className="stat-number">{resources.length}</div>
+              <div className="stat-label">Resources in discussion</div>
+            </div>
+            <div className="stat-box">
+              <div className="stat-title">Original + live</div>
+              <div className="stat-label">
+                Every upload retains the original and a working copy
+              </div>
+            </div>
+            <div className="stat-box">
+              <div className="stat-title">Comments</div>
+              <div className="stat-label">
+                Objections and new information sit beside the document
+              </div>
+            </div>
+            <div className="stat-box">
+              <div className="stat-title">History</div>
+              <div className="stat-label">
+                Admin decisions remain visible and disputable
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="card card-pad">
+        <h2 className="section-title">Latest uploads</h2>
+        <p className="section-copy">
+          Newest to oldest. Click any document to open the live discussion page and the current working copy.
+        </p>
+
+        {loading ? (
+          <div className="empty">Loading latest uploads…</div>
+        ) : latestUploads.length ? (
+          <div className="resource-list">
+            {latestUploads.map((resource) => (
+              <Link
+                key={resource.id}
+                href={`/resources/${resource.id}`}
+                className="resource-card"
+              >
+                <div className="resource-meta">
+                  <span>{resource.area || 'General'}</span>
+                  <span>·</span>
+                  <span>{resource.jurisdiction || 'Australia'}</span>
+                  <span>·</span>
+                  <span>{resource.type || 'Document'}</span>
+                </div>
+
+                <h3 className="resource-title">{resource.title}</h3>
+
+                {resource.summary && (
+                  <p className="resource-summary">{resource.summary}</p>
+                )}
+
+                <div className="resource-footer">
+                  <span>{formatDate(resource.created_at)}</span>
+                  <span>Open discussion →</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="empty">No resources yet. Upload one to make it appear here.</div>
+        )}
+      </section>
+    </>
+  );
+}
+
+function LibraryView({
+  resources,
+  loading,
+}: {
+  resources: Resource[];
+  loading: boolean;
+}) {
+  return (
+    <section className="card card-pad">
+      <h2 className="section-title">Library</h2>
+      <p className="section-copy">Browse every resource currently in discussion.</p>
+
+      {loading ? (
+        <div className="empty">Loading library…</div>
+      ) : resources.length ? (
+        <div className="resource-list">
+          {resources.map((resource) => (
+            <Link
+              key={resource.id}
+              href={`/resources/${resource.id}`}
+              className="resource-card"
+            >
+              <div className="resource-meta">
+                <span>{resource.area || 'General'}</span>
+                <span>·</span>
+                <span>{resource.jurisdiction || 'Australia'}</span>
+                <span>·</span>
+                <span>{resource.type || 'Document'}</span>
+              </div>
+
+              <h3 className="resource-title">{resource.title}</h3>
+
+              {resource.summary && (
+                <p className="resource-summary">{resource.summary}</p>
+              )}
+
+              <div className="resource-footer">
+                <span>{formatDate(resource.created_at)}</span>
+                <span>Open →</span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <div className="empty">No resources found.</div>
+      )}
+    </section>
+  );
+}
+
+function UploadView({
+  uploadTitle,
+  setUploadTitle,
+  uploadSummary,
+  setUploadSummary,
+  uploadArea,
+  setUploadArea,
+  uploadJurisdiction,
+  setUploadJurisdiction,
+  uploadType,
+  setUploadType,
+  uploadBusy,
+  onSubmit,
+}: {
+  uploadTitle: string;
+  setUploadTitle: (v: string) => void;
+  uploadSummary: string;
+  setUploadSummary: (v: string) => void;
+  uploadArea: string;
+  setUploadArea: (v: string) => void;
+  uploadJurisdiction: string;
+  setUploadJurisdiction: (v: string) => void;
+  uploadType: string;
+  setUploadType: (v: string) => void;
+  uploadBusy: boolean;
+  onSubmit: (e: React.FormEvent) => void;
+}) {
+  return (
+    <section className="card card-pad">
+      <h2 className="section-title">Upload</h2>
+      <p className="section-copy">Create a new resource for discussion.</p>
+
+      <form className="stack" onSubmit={onSubmit}>
+        <input
+          className="input"
+          placeholder="Title"
+          value={uploadTitle}
+          onChange={(e) => setUploadTitle(e.target.value)}
+          required
+        />
+
+        <textarea
+          className="textarea"
+          placeholder="Summary / working content"
+          value={uploadSummary}
+          onChange={(e) => setUploadSummary(e.target.value)}
+          rows={8}
+        />
+
+        <div className="hero-actions">
+          <input
+            className="input"
+            placeholder="Area"
+            value={uploadArea}
+            onChange={(e) => setUploadArea(e.target.value)}
+          />
+          <input
+            className="input"
+            placeholder="Jurisdiction"
+            value={uploadJurisdiction}
+            onChange={(e) => setUploadJurisdiction(e.target.value)}
+          />
+          <input
+            className="input"
+            placeholder="Type"
+            value={uploadType}
+            onChange={(e) => setUploadType(e.target.value)}
+          />
+        </div>
+
+        <div className="hero-actions">
+          <button className="action-btn" type="submit" disabled={uploadBusy}>
+            {uploadBusy ? 'Uploading…' : 'Upload resource'}
+          </button>
+        </div>
+      </form>
+    </section>
+  );
+}
+
+function LoginView({
+  isSignedIn,
+  authMode,
+  setAuthMode,
+  email,
+  setEmail,
+  password,
+  setPassword,
+  fullName,
+  setFullName,
+  authBusy,
+  onSubmit,
+  onSignOut,
+}: {
+  isSignedIn: boolean;
+  authMode: 'signin' | 'signup';
+  setAuthMode: (v: 'signin' | 'signup') => void;
+  email: string;
+  setEmail: (v: string) => void;
+  password: string;
+  setPassword: (v: string) => void;
+  fullName: string;
+  setFullName: (v: string) => void;
+  authBusy: boolean;
+  onSubmit: (e: React.FormEvent) => void;
+  onSignOut: () => void;
+}) {
+  return (
+    <section className="card card-pad">
+      <h2 className="section-title">Lawyer login</h2>
+      <p className="section-copy">Sign in or create an account.</p>
+
+      {isSignedIn ? (
+        <div className="stack">
+          <div className="success-box">You are signed in.</div>
+          <div className="hero-actions">
+            <button className="ghost-btn" type="button" onClick={onSignOut}>
+              Sign out
+            </button>
+          </div>
+        </div>
+      ) : (
+        <form className="stack" onSubmit={onSubmit}>
+          {authMode === 'signup' && (
+            <input
+              className="input"
+              placeholder="Full name"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+            />
+          )}
+
+          <input
+            className="input"
+            placeholder="Email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+
+          <input
+            className="input"
+            placeholder="Password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+
+          <div className="hero-actions">
+            <button className="action-btn" type="submit" disabled={authBusy}>
+              {authBusy
+                ? 'Please wait…'
+                : authMode === 'signin'
+                ? 'Sign in'
+                : 'Create account'}
+            </button>
+
+            <button
+              className="ghost-btn"
+              type="button"
+              onClick={() =>
+                setAuthMode(authMode === 'signin' ? 'signup' : 'signin')
+              }
+            >
+              {authMode === 'signin' ? 'Create account instead' : 'Use sign in instead'}
+            </button>
+          </div>
+        </form>
+      )}
+    </section>
+  );
+}
+
 export default function Page() {
   const [view, setView] = useState<View>('home');
   const [resources, setResources] = useState<Resource[]>([]);
@@ -28,8 +387,6 @@ export default function Page() {
   const [uploadJurisdiction, setUploadJurisdiction] = useState('Australia');
   const [uploadType, setUploadType] = useState('Advice');
   const [uploadBusy, setUploadBusy] = useState(false);
-
-  const latestUploads = useMemo(() => resources.slice(0, 8), [resources]);
 
   useEffect(() => {
     async function boot() {
@@ -192,303 +549,6 @@ export default function Page() {
     }
   }
 
-  function HeaderButton({
-    active,
-    onClick,
-    children,
-  }: {
-    active: boolean;
-    onClick: () => void;
-    children: React.ReactNode;
-  }) {
-    return (
-      <button
-        onClick={onClick}
-        className={active ? 'action-btn' : 'ghost-btn'}
-        type="button"
-      >
-        {children}
-      </button>
-    );
-  }
-
-  function HomeView() {
-    return (
-      <>
-        <section className="hero card card-pad">
-          <div className="pill-row">
-            <span className="pill">Living documents</span>
-            <span className="pill">Tracked admin decisions</span>
-            <span className="pill">Open legal discussion</span>
-          </div>
-
-          <div className="hero-grid">
-            <div className="stack">
-              <h1 className="hero-title">
-                Pardella turns legal work into living documents, not static uploads.
-              </h1>
-
-              <p className="hero-copy">
-                Members upload original materials, maintain a live editable working copy,
-                debate objections in comments, and keep every admin acceptance or rejection visible.
-                The goal is practical legal accuracy, current case law awareness, and transparent refinement.
-              </p>
-
-              <div className="hero-actions">
-                <button className="action-btn" type="button" onClick={() => setView('library')}>
-                  See latest uploads
-                </button>
-                <Link href="/admin" className="ghost-btn">
-                  Admin decisions
-                </Link>
-              </div>
-            </div>
-
-            <div className="stats-grid">
-              <div className="stat-box">
-                <div className="stat-number">{resources.length}</div>
-                <div className="stat-label">Resources in discussion</div>
-              </div>
-              <div className="stat-box">
-                <div className="stat-title">Original + live</div>
-                <div className="stat-label">
-                  Every upload retains the original and a working copy
-                </div>
-              </div>
-              <div className="stat-box">
-                <div className="stat-title">Comments</div>
-                <div className="stat-label">
-                  Objections and new information sit beside the document
-                </div>
-              </div>
-              <div className="stat-box">
-                <div className="stat-title">History</div>
-                <div className="stat-label">
-                  Admin decisions remain visible and disputable
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="card card-pad">
-          <h2 className="section-title">Latest uploads</h2>
-          <p className="section-copy">
-            Newest to oldest. Click any document to open the live discussion page and the current working copy.
-          </p>
-
-          {loading ? (
-            <div className="empty">Loading latest uploads…</div>
-          ) : latestUploads.length ? (
-            <div className="resource-list">
-              {latestUploads.map((resource) => (
-                <Link
-                  key={resource.id}
-                  href={`/resources/${resource.id}`}
-                  className="resource-card"
-                >
-                  <div className="resource-meta">
-                    <span>{resource.area || 'General'}</span>
-                    <span>·</span>
-                    <span>{resource.jurisdiction || 'Australia'}</span>
-                    <span>·</span>
-                    <span>{resource.type || 'Document'}</span>
-                  </div>
-
-                  <h3 className="resource-title">{resource.title}</h3>
-
-                  {resource.summary && (
-                    <p className="resource-summary">{resource.summary}</p>
-                  )}
-
-                  <div className="resource-footer">
-                    <span>{formatDate(resource.created_at)}</span>
-                    <span>Open discussion →</span>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <div className="empty">No resources yet. Upload one to make it appear here.</div>
-          )}
-        </section>
-      </>
-    );
-  }
-
-  function LibraryView() {
-    return (
-      <section className="card card-pad">
-        <h2 className="section-title">Library</h2>
-        <p className="section-copy">
-          Browse every resource currently in discussion.
-        </p>
-
-        {loading ? (
-          <div className="empty">Loading library…</div>
-        ) : resources.length ? (
-          <div className="resource-list">
-            {resources.map((resource) => (
-              <Link
-                key={resource.id}
-                href={`/resources/${resource.id}`}
-                className="resource-card"
-              >
-                <div className="resource-meta">
-                  <span>{resource.area || 'General'}</span>
-                  <span>·</span>
-                  <span>{resource.jurisdiction || 'Australia'}</span>
-                  <span>·</span>
-                  <span>{resource.type || 'Document'}</span>
-                </div>
-
-                <h3 className="resource-title">{resource.title}</h3>
-
-                {resource.summary && (
-                  <p className="resource-summary">{resource.summary}</p>
-                )}
-
-                <div className="resource-footer">
-                  <span>{formatDate(resource.created_at)}</span>
-                  <span>Open →</span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <div className="empty">No resources found.</div>
-        )}
-      </section>
-    );
-  }
-
-  function UploadView() {
-    return (
-      <section className="card card-pad">
-        <h2 className="section-title">Upload</h2>
-        <p className="section-copy">
-          Create a new resource for discussion.
-        </p>
-
-        <form className="stack" onSubmit={handleUploadSubmit}>
-          <input
-            className="input"
-            placeholder="Title"
-            value={uploadTitle}
-            onChange={(e) => setUploadTitle(e.target.value)}
-            required
-          />
-
-          <textarea
-            className="textarea"
-            placeholder="Summary / working content"
-            value={uploadSummary}
-            onChange={(e) => setUploadSummary(e.target.value)}
-            rows={8}
-          />
-
-          <div className="hero-actions">
-            <input
-              className="input"
-              placeholder="Area"
-              value={uploadArea}
-              onChange={(e) => setUploadArea(e.target.value)}
-            />
-            <input
-              className="input"
-              placeholder="Jurisdiction"
-              value={uploadJurisdiction}
-              onChange={(e) => setUploadJurisdiction(e.target.value)}
-            />
-            <input
-              className="input"
-              placeholder="Type"
-              value={uploadType}
-              onChange={(e) => setUploadType(e.target.value)}
-            />
-          </div>
-
-          <div className="hero-actions">
-            <button className="action-btn" type="submit" disabled={uploadBusy}>
-              {uploadBusy ? 'Uploading…' : 'Upload resource'}
-            </button>
-          </div>
-        </form>
-      </section>
-    );
-  }
-
-  function LoginView() {
-    return (
-      <section className="card card-pad">
-        <h2 className="section-title">Lawyer login</h2>
-        <p className="section-copy">
-          Sign in or create an account.
-        </p>
-
-        {isSignedIn ? (
-          <div className="stack">
-            <div className="success-box">You are signed in.</div>
-            <div className="hero-actions">
-              <button className="ghost-btn" type="button" onClick={handleSignOut}>
-                Sign out
-              </button>
-            </div>
-          </div>
-        ) : (
-          <form className="stack" onSubmit={handleAuthSubmit}>
-            {authMode === 'signup' && (
-              <input
-                className="input"
-                placeholder="Full name"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-              />
-            )}
-
-            <input
-              className="input"
-              placeholder="Email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-
-            <input
-              className="input"
-              placeholder="Password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-
-            <div className="hero-actions">
-              <button className="action-btn" type="submit" disabled={authBusy}>
-                {authBusy
-                  ? 'Please wait…'
-                  : authMode === 'signin'
-                  ? 'Sign in'
-                  : 'Create account'}
-              </button>
-
-              <button
-                className="ghost-btn"
-                type="button"
-                onClick={() =>
-                  setAuthMode((m) => (m === 'signin' ? 'signup' : 'signin'))
-                }
-              >
-                {authMode === 'signin' ? 'Create account instead' : 'Use sign in instead'}
-              </button>
-            </div>
-          </form>
-        )}
-      </section>
-    );
-  }
-
   return (
     <main className="main">
       <div className="topbar">
@@ -522,10 +582,54 @@ export default function Page() {
         {error && <div className="error-box">{error}</div>}
         {message && <div className="success-box">{message}</div>}
 
-        {view === 'home' && <HomeView />}
-        {view === 'library' && <LibraryView />}
-        {view === 'upload' && <UploadView />}
-        {view === 'login' && <LoginView />}
+        {view === 'home' && (
+          <HomeView
+            resources={resources}
+            loading={loading}
+            onOpenLibrary={() => setView('library')}
+          />
+        )}
+
+        {view === 'library' && (
+          <LibraryView
+            resources={resources}
+            loading={loading}
+          />
+        )}
+
+        {view === 'upload' && (
+          <UploadView
+            uploadTitle={uploadTitle}
+            setUploadTitle={setUploadTitle}
+            uploadSummary={uploadSummary}
+            setUploadSummary={setUploadSummary}
+            uploadArea={uploadArea}
+            setUploadArea={setUploadArea}
+            uploadJurisdiction={uploadJurisdiction}
+            setUploadJurisdiction={setUploadJurisdiction}
+            uploadType={uploadType}
+            setUploadType={setUploadType}
+            uploadBusy={uploadBusy}
+            onSubmit={handleUploadSubmit}
+          />
+        )}
+
+        {view === 'login' && (
+          <LoginView
+            isSignedIn={isSignedIn}
+            authMode={authMode}
+            setAuthMode={setAuthMode}
+            email={email}
+            setEmail={setEmail}
+            password={password}
+            setPassword={setPassword}
+            fullName={fullName}
+            setFullName={setFullName}
+            authBusy={authBusy}
+            onSubmit={handleAuthSubmit}
+            onSignOut={handleSignOut}
+          />
+        )}
       </div>
     </main>
   );
