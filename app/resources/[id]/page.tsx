@@ -1,7 +1,6 @@
 import ResourceDetailClient from './ResourceDetailClient';
 
-export default async function ResourcePage({ params }: any) {
-  const resolvedParams = await params;
-  const id = resolvedParams?.id ?? '';
-  return <ResourceDetailClient id={id} />;
+export default async function Page(props: any) {
+  const resolved = await props.params;
+  return <ResourceDetailClient id={resolved?.id ?? ''} />;
 }
