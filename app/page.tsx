@@ -1,395 +1,19 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { formatDate } from '@/lib/utils';
 import type { Resource } from '@/lib/types';
 
-type View = 'home' | 'library' | 'upload' | 'login';
-
-function HeaderButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={active ? 'action-btn' : 'ghost-btn'}
-      type="button"
-    >
-      {children}
-    </button>
-  );
-}
-
-function HomeView({
-  resources,
-  loading,
-  onOpenLibrary,
-}: {
-  resources: Resource[];
-  loading: boolean;
-  onOpenLibrary: () => void;
-}) {
-  const latestUploads = resources.slice(0, 8);
-
-  return (
-    <>
-      <section className="hero card card-pad">
-        <div className="pill-row">
-          <span className="pill">Living documents</span>
-          <span className="pill">Tracked admin decisions</span>
-          <span className="pill">Open legal discussion</span>
-        </div>
-
-        <div className="hero-grid">
-          <div className="stack">
-            <h1 className="hero-title">
-              Pardella turns legal work into living documents, not static uploads.
-            </h1>
-
-            <p className="hero-copy">
-              Members upload original materials, maintain a live editable working copy,
-              debate objections in comments, and keep every admin acceptance or rejection visible.
-              The goal is practical legal accuracy, current case law awareness, and transparent refinement.
-            </p>
-
-            <div className="hero-actions">
-              <button className="action-btn" type="button" onClick={onOpenLibrary}>
-                See latest uploads
-              </button>
-              <Link href="/admin" className="ghost-btn">
-                Admin decisions
-              </Link>
-            </div>
-          </div>
-
-          <div className="stats-grid">
-            <div className="stat-box">
-              <div className="stat-number">{resources.length}</div>
-              <div className="stat-label">Resources in discussion</div>
-            </div>
-            <div className="stat-box">
-              <div className="stat-title">Original + live</div>
-              <div className="stat-label">
-                Every upload retains the original and a working copy
-              </div>
-            </div>
-            <div className="stat-box">
-              <div className="stat-title">Comments</div>
-              <div className="stat-label">
-                Objections and new information sit beside the document
-              </div>
-            </div>
-            <div className="stat-box">
-              <div className="stat-title">History</div>
-              <div className="stat-label">
-                Admin decisions remain visible and disputable
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="card card-pad">
-        <h2 className="section-title">Latest uploads</h2>
-        <p className="section-copy">
-          Newest to oldest. Click any document to open the live discussion page and the current working copy.
-        </p>
-
-        {loading ? (
-          <div className="empty">Loading latest uploads…</div>
-        ) : latestUploads.length ? (
-          <div className="resource-list">
-            {latestUploads.map((resource) => (
-              <Link
-                key={resource.id}
-                href={`/resources/${resource.id}`}
-                className="resource-card"
-              >
-                <div className="resource-meta">
-                  <span>{resource.area || 'General'}</span>
-                  <span>·</span>
-                  <span>{resource.jurisdiction || 'Australia'}</span>
-                  <span>·</span>
-                  <span>{resource.type || 'Document'}</span>
-                </div>
-
-                <h3 className="resource-title">{resource.title}</h3>
-
-                {resource.summary && (
-                  <p className="resource-summary">{resource.summary}</p>
-                )}
-
-                <div className="resource-footer">
-                  <span>{formatDate(resource.created_at)}</span>
-                  <span>Open discussion →</span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <div className="empty">No resources yet. Upload one to make it appear here.</div>
-        )}
-      </section>
-    </>
-  );
-}
-
-function LibraryView({
-  resources,
-  loading,
-}: {
-  resources: Resource[];
-  loading: boolean;
-}) {
-  return (
-    <section className="card card-pad">
-      <h2 className="section-title">Library</h2>
-      <p className="section-copy">Browse every resource currently in discussion.</p>
-
-      {loading ? (
-        <div className="empty">Loading library…</div>
-      ) : resources.length ? (
-        <div className="resource-list">
-          {resources.map((resource) => (
-            <Link
-              key={resource.id}
-              href={`/resources/${resource.id}`}
-              className="resource-card"
-            >
-              <div className="resource-meta">
-                <span>{resource.area || 'General'}</span>
-                <span>·</span>
-                <span>{resource.jurisdiction || 'Australia'}</span>
-                <span>·</span>
-                <span>{resource.type || 'Document'}</span>
-              </div>
-
-              <h3 className="resource-title">{resource.title}</h3>
-
-              {resource.summary && (
-                <p className="resource-summary">{resource.summary}</p>
-              )}
-
-              <div className="resource-footer">
-                <span>{formatDate(resource.created_at)}</span>
-                <span>Open →</span>
-              </div>
-            </Link>
-          ))}
-        </div>
-      ) : (
-        <div className="empty">No resources found.</div>
-      )}
-    </section>
-  );
-}
-
-function UploadView({
-  uploadTitle,
-  setUploadTitle,
-  uploadSummary,
-  setUploadSummary,
-  uploadArea,
-  setUploadArea,
-  uploadJurisdiction,
-  setUploadJurisdiction,
-  uploadType,
-  setUploadType,
-  uploadBusy,
-  onSubmit,
-}: {
-  uploadTitle: string;
-  setUploadTitle: (v: string) => void;
-  uploadSummary: string;
-  setUploadSummary: (v: string) => void;
-  uploadArea: string;
-  setUploadArea: (v: string) => void;
-  uploadJurisdiction: string;
-  setUploadJurisdiction: (v: string) => void;
-  uploadType: string;
-  setUploadType: (v: string) => void;
-  uploadBusy: boolean;
-  onSubmit: (e: React.FormEvent) => void;
-}) {
-  return (
-    <section className="card card-pad">
-      <h2 className="section-title">Upload</h2>
-      <p className="section-copy">Create a new resource for discussion.</p>
-
-      <form className="stack" onSubmit={onSubmit}>
-        <input
-          className="input"
-          placeholder="Title"
-          value={uploadTitle}
-          onChange={(e) => setUploadTitle(e.target.value)}
-          required
-        />
-
-        <textarea
-          className="textarea"
-          placeholder="Summary / working content"
-          value={uploadSummary}
-          onChange={(e) => setUploadSummary(e.target.value)}
-          rows={8}
-        />
-
-        <div className="hero-actions">
-          <input
-            className="input"
-            placeholder="Area"
-            value={uploadArea}
-            onChange={(e) => setUploadArea(e.target.value)}
-          />
-          <input
-            className="input"
-            placeholder="Jurisdiction"
-            value={uploadJurisdiction}
-            onChange={(e) => setUploadJurisdiction(e.target.value)}
-          />
-          <input
-            className="input"
-            placeholder="Type"
-            value={uploadType}
-            onChange={(e) => setUploadType(e.target.value)}
-          />
-        </div>
-
-        <div className="hero-actions">
-          <button className="action-btn" type="submit" disabled={uploadBusy}>
-            {uploadBusy ? 'Uploading…' : 'Upload resource'}
-          </button>
-        </div>
-      </form>
-    </section>
-  );
-}
-
-function LoginView({
-  isSignedIn,
-  authMode,
-  setAuthMode,
-  email,
-  setEmail,
-  password,
-  setPassword,
-  fullName,
-  setFullName,
-  authBusy,
-  onSubmit,
-  onSignOut,
-}: {
-  isSignedIn: boolean;
-  authMode: 'signin' | 'signup';
-  setAuthMode: (v: 'signin' | 'signup') => void;
-  email: string;
-  setEmail: (v: string) => void;
-  password: string;
-  setPassword: (v: string) => void;
-  fullName: string;
-  setFullName: (v: string) => void;
-  authBusy: boolean;
-  onSubmit: (e: React.FormEvent) => void;
-  onSignOut: () => void;
-}) {
-  return (
-    <section className="card card-pad">
-      <h2 className="section-title">Lawyer login</h2>
-      <p className="section-copy">Sign in or create an account.</p>
-
-      {isSignedIn ? (
-        <div className="stack">
-          <div className="success-box">You are signed in.</div>
-          <div className="hero-actions">
-            <button className="ghost-btn" type="button" onClick={onSignOut}>
-              Sign out
-            </button>
-          </div>
-        </div>
-      ) : (
-        <form className="stack" onSubmit={onSubmit}>
-          {authMode === 'signup' && (
-            <input
-              className="input"
-              placeholder="Full name"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-            />
-          )}
-
-          <input
-            className="input"
-            placeholder="Email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-
-          <input
-            className="input"
-            placeholder="Password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-
-          <div className="hero-actions">
-            <button className="action-btn" type="submit" disabled={authBusy}>
-              {authBusy
-                ? 'Please wait…'
-                : authMode === 'signin'
-                ? 'Sign in'
-                : 'Create account'}
-            </button>
-
-            <button
-              className="ghost-btn"
-              type="button"
-              onClick={() =>
-                setAuthMode(authMode === 'signin' ? 'signup' : 'signin')
-              }
-            >
-              {authMode === 'signin' ? 'Create account instead' : 'Use sign in instead'}
-            </button>
-          </div>
-        </form>
-      )}
-    </section>
-  );
-}
-
 export default function Page() {
-  const [view, setView] = useState<View>('home');
   const [resources, setResources] = useState<Resource[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
-
-  const [isSignedIn, setIsSignedIn] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
-  const [authBusy, setAuthBusy] = useState(false);
-
-  const [uploadTitle, setUploadTitle] = useState('');
-  const [uploadSummary, setUploadSummary] = useState('');
-  const [uploadArea, setUploadArea] = useState('General');
-  const [uploadJurisdiction, setUploadJurisdiction] = useState('Australia');
-  const [uploadType, setUploadType] = useState('Advice');
-  const [uploadBusy, setUploadBusy] = useState(false);
+  const [activeTab, setActiveTab] = useState<'home' | 'library' | 'upload' | 'login'>('home');
 
   useEffect(() => {
-    async function boot() {
+    async function loadResources() {
       try {
         setError(null);
 
@@ -398,12 +22,9 @@ export default function Page() {
           return;
         }
 
-        const { data: sessionData } = await supabase.auth.getSession();
-        setIsSignedIn(Boolean(sessionData.session));
-
         const { data, error: queryError } = await supabase
           .from('resources')
-          .select('*')
+          .select('id,title,summary,area,jurisdiction,type,created_at')
           .order('created_at', { ascending: false });
 
         if (queryError) {
@@ -413,224 +34,602 @@ export default function Page() {
 
         setResources((data || []) as Resource[]);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Unable to load Pardella.');
+        setError(err instanceof Error ? err.message : 'Unable to load homepage data.');
       } finally {
         setLoading(false);
       }
     }
 
-    boot();
-
-    if (!supabase) return;
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsSignedIn(Boolean(session));
-    });
-
-    return () => subscription.unsubscribe();
+    loadResources();
   }, []);
 
-  async function refreshResources() {
-    if (!supabase) return;
-    const { data } = await supabase
-      .from('resources')
-      .select('*')
-      .order('created_at', { ascending: false });
-    setResources((data || []) as Resource[]);
-  }
-
-  async function handleAuthSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!supabase) {
-      setError('Supabase is not connected.');
-      return;
-    }
-
-    setAuthBusy(true);
-    setError(null);
-    setMessage(null);
-
-    try {
-      if (authMode === 'signin') {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-
-        if (signInError) throw signInError;
-
-        setMessage('Signed in successfully.');
-        setView('library');
-      } else {
-        const { data, error: signUpError } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              full_name: fullName,
-            },
-          },
-        });
-
-        if (signUpError) throw signUpError;
-
-        if (data.user) {
-          await supabase.from('profiles').upsert({
-            id: data.user.id,
-            full_name: fullName || null,
-            role: 'member',
-          });
-        }
-
-        setMessage('Account created. You can now sign in.');
-        setAuthMode('signin');
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Authentication failed.');
-    } finally {
-      setAuthBusy(false);
-    }
-  }
-
-  async function handleSignOut() {
-    if (!supabase) return;
-    await supabase.auth.signOut();
-    setMessage('Signed out.');
-    setView('home');
-  }
-
-  async function handleUploadSubmit(e: React.FormEvent) {
-    e.preventDefault();
-
-    if (!supabase) {
-      setError('Supabase is not connected.');
-      return;
-    }
-
-    setUploadBusy(true);
-    setError(null);
-    setMessage(null);
-
-    try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const user = sessionData.session?.user;
-
-      if (!user) {
-        throw new Error('Sign in first to upload.');
-      }
-
-      const { error: insertError } = await supabase.from('resources').insert({
-        title: uploadTitle,
-        summary: uploadSummary || null,
-        area: uploadArea,
-        jurisdiction: uploadJurisdiction,
-        type: uploadType,
-        current_content: uploadSummary || '',
-        created_by: user.id,
-      });
-
-      if (insertError) throw insertError;
-
-      setUploadTitle('');
-      setUploadSummary('');
-      setUploadArea('General');
-      setUploadJurisdiction('Australia');
-      setUploadType('Advice');
-
-      await refreshResources();
-      setMessage('Resource uploaded.');
-      setView('library');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed.');
-    } finally {
-      setUploadBusy(false);
-    }
-  }
-
   return (
-    <main className="main">
-      <div className="topbar">
-        <div className="brand-wrap">
-          <div className="brand-mark">◐</div>
-          <div>
-            <div className="brand-name">Pardella</div>
-            <div className="brand-tag">
-              Collaborative legal discussion, living advices, and tracked revisions.
+    <main
+      style={{
+        minHeight: '100vh',
+        background: '#f3f5f9',
+        color: '#0f172a',
+        fontFamily:
+          'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      }}
+    >
+      <div
+        style={{
+          maxWidth: '1100px',
+          width: '100%',
+          margin: '0 auto',
+          padding: '16px 24px 40px',
+          boxSizing: 'border-box',
+        }}
+      >
+        <header
+          style={{
+            width: '100%',
+            marginBottom: '28px',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              textAlign: 'center',
+              gap: '12px',
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontSize: '2rem',
+                  fontWeight: 800,
+                  lineHeight: 1.05,
+                  marginBottom: '4px',
+                }}
+              >
+                Pardella
+              </div>
+              <div
+                style={{
+                  fontSize: '1rem',
+                  color: '#64748b',
+                }}
+              >
+                Collaborative legal discussion, living advices, and tracked revisions.
+              </div>
             </div>
+
+            <nav
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                gap: '12px',
+                flexWrap: 'wrap',
+                width: '100%',
+                marginTop: '8px',
+              }}
+            >
+              <button
+                onClick={() => setActiveTab('home')}
+                style={tabStyle(activeTab === 'home')}
+              >
+                Home
+              </button>
+
+              <button
+                onClick={() => setActiveTab('library')}
+                style={tabStyle(activeTab === 'library')}
+              >
+                Library
+              </button>
+
+              <Link href="/upload" style={linkTabStyle}>
+                Upload
+              </Link>
+
+              <Link href="/login" style={linkTabStyle}>
+                Lawyer login
+              </Link>
+            </nav>
           </div>
-        </div>
+        </header>
 
-        <div className="hero-actions">
-          <HeaderButton active={view === 'home'} onClick={() => setView('home')}>
-            Home
-          </HeaderButton>
-          <HeaderButton active={view === 'library'} onClick={() => setView('library')}>
-            Library
-          </HeaderButton>
-          <HeaderButton active={view === 'upload'} onClick={() => setView('upload')}>
-            Upload
-          </HeaderButton>
-          <HeaderButton active={view === 'login'} onClick={() => setView('login')}>
-            Lawyer login
-          </HeaderButton>
-        </div>
-      </div>
+        {activeTab === 'home' && (
+          <>
+            <section
+              style={{
+                background: '#ffffff',
+                border: '1px solid #dbe3ee',
+                borderRadius: '24px',
+                padding: '28px',
+                boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
+                marginBottom: '18px',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: '8px',
+                  marginBottom: '18px',
+                }}
+              >
+                <Pill>Living documents</Pill>
+                <Pill>Tracked admin decisions</Pill>
+                <Pill>Open legal discussion</Pill>
+              </div>
 
-      <div className="container stack">
-        {error && <div className="error-box">{error}</div>}
-        {message && <div className="success-box">{message}</div>}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1.2fr 0.8fr',
+                  gap: '18px',
+                }}
+              >
+                <div>
+                  <h1
+                    style={{
+                      fontSize: 'clamp(2.3rem, 5vw, 4rem)',
+                      lineHeight: 1.02,
+                      fontWeight: 900,
+                      margin: 0,
+                      letterSpacing: '-0.03em',
+                    }}
+                  >
+                    Pardella turns legal work into living documents, not static uploads.
+                  </h1>
 
-        {view === 'home' && (
-          <HomeView
-            resources={resources}
-            loading={loading}
-            onOpenLibrary={() => setView('library')}
-          />
+                  <p
+                    style={{
+                      marginTop: '22px',
+                      fontSize: '1.1rem',
+                      lineHeight: 1.8,
+                      color: '#64748b',
+                      maxWidth: '760px',
+                    }}
+                  >
+                    Members upload original materials, maintain a live editable working copy,
+                    debate objections in comments, and keep every admin acceptance or rejection
+                    visible. The goal is practical legal accuracy, current case law awareness,
+                    and transparent refinement.
+                  </p>
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: '12px',
+                      flexWrap: 'wrap',
+                      marginTop: '24px',
+                    }}
+                  >
+                    <button
+                      onClick={() => setActiveTab('library')}
+                      style={{
+                        border: 'none',
+                        background: '#0f172a',
+                        color: '#fff',
+                        padding: '14px 20px',
+                        borderRadius: '14px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        fontSize: '0.98rem',
+                      }}
+                    >
+                      See latest uploads
+                    </button>
+
+                    <Link href="/admin" style={secondaryButtonStyle}>
+                      Admin decisions
+                    </Link>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: '14px',
+                    alignSelf: 'start',
+                  }}
+                >
+                  <StatCard
+                    title={String(resources.length)}
+                    text="Resources in discussion"
+                    number
+                  />
+                  <StatCard
+                    title="Original + live"
+                    text="Every upload retains the original and a working copy"
+                  />
+                  <StatCard
+                    title="Comments"
+                    text="Objections and new information sit beside the document"
+                  />
+                  <StatCard
+                    title="History"
+                    text="Admin decisions remain visible and disputable"
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section
+              style={{
+                background: '#ffffff',
+                border: '1px solid #dbe3ee',
+                borderRadius: '24px',
+                padding: '28px',
+                boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
+              }}
+            >
+              <h2
+                style={{
+                  fontSize: '2rem',
+                  fontWeight: 850,
+                  margin: '0 0 8px 0',
+                  letterSpacing: '-0.02em',
+                }}
+              >
+                Latest uploads
+              </h2>
+
+              <p
+                style={{
+                  margin: '0 0 24px 0',
+                  color: '#64748b',
+                  fontSize: '1rem',
+                }}
+              >
+                Newest to oldest. Click any document to open the live discussion page and the current working copy.
+              </p>
+
+              {loading ? (
+                <div style={emptyBoxStyle}>Loading Pardella…</div>
+              ) : error ? (
+                <div
+                  style={{
+                    border: '1px solid #fecaca',
+                    background: '#fef2f2',
+                    color: '#b91c1c',
+                    padding: '16px 18px',
+                    borderRadius: '16px',
+                    fontSize: '0.95rem',
+                  }}
+                >
+                  {error}
+                </div>
+              ) : resources.length ? (
+                <div
+                  style={{
+                    display: 'grid',
+                    gap: '14px',
+                  }}
+                >
+                  {resources.map((resource) => (
+                    <Link
+                      key={resource.id}
+                      href={`/resources/${resource.id}`}
+                      style={{
+                        display: 'block',
+                        textDecoration: 'none',
+                        color: 'inherit',
+                        border: '1px solid #dbe3ee',
+                        background: '#f8fafc',
+                        borderRadius: '18px',
+                        padding: '18px',
+                        transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+                        boxShadow: '0 1px 2px rgba(15, 23, 42, 0.03)',
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexWrap: 'wrap',
+                          gap: '6px',
+                          color: '#64748b',
+                          fontSize: '0.87rem',
+                          marginBottom: '10px',
+                        }}
+                      >
+                        <span>{resource.area || 'Uncategorised'}</span>
+                        <span>·</span>
+                        <span>{resource.jurisdiction || 'Unknown jurisdiction'}</span>
+                        <span>·</span>
+                        <span>{resource.type || 'Document'}</span>
+                      </div>
+
+                      <div
+                        style={{
+                          fontSize: '1.2rem',
+                          fontWeight: 750,
+                          marginBottom: resource.summary ? '8px' : '14px',
+                        }}
+                      >
+                        {resource.title}
+                      </div>
+
+                      {resource.summary && (
+                        <div
+                          style={{
+                            color: '#64748b',
+                            lineHeight: 1.6,
+                            marginBottom: '14px',
+                          }}
+                        >
+                          {resource.summary}
+                        </div>
+                      )}
+
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          gap: '12px',
+                          color: '#64748b',
+                          fontSize: '0.9rem',
+                        }}
+                      >
+                        <span>{formatDate(resource.created_at)}</span>
+                        <span style={{ fontWeight: 650, color: '#0f172a' }}>
+                          Open discussion →
+                        </span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <div style={emptyBoxStyle}>
+                  No resources yet. Upload one to make it appear here.
+                </div>
+              )}
+            </section>
+          </>
         )}
 
-        {view === 'library' && (
-          <LibraryView
-            resources={resources}
-            loading={loading}
-          />
-        )}
+        {activeTab === 'library' && (
+          <section
+            style={{
+              background: '#ffffff',
+              border: '1px solid #dbe3ee',
+              borderRadius: '24px',
+              padding: '28px',
+              boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
+            }}
+          >
+            <h2
+              style={{
+                fontSize: '2rem',
+                fontWeight: 850,
+                margin: '0 0 8px 0',
+                letterSpacing: '-0.02em',
+              }}
+            >
+              Library
+            </h2>
 
-        {view === 'upload' && (
-          <UploadView
-            uploadTitle={uploadTitle}
-            setUploadTitle={setUploadTitle}
-            uploadSummary={uploadSummary}
-            setUploadSummary={setUploadSummary}
-            uploadArea={uploadArea}
-            setUploadArea={setUploadArea}
-            uploadJurisdiction={uploadJurisdiction}
-            setUploadJurisdiction={setUploadJurisdiction}
-            uploadType={uploadType}
-            setUploadType={setUploadType}
-            uploadBusy={uploadBusy}
-            onSubmit={handleUploadSubmit}
-          />
-        )}
+            <p
+              style={{
+                margin: '0 0 24px 0',
+                color: '#64748b',
+                fontSize: '1rem',
+              }}
+            >
+              Browse every uploaded resource below.
+            </p>
 
-        {view === 'login' && (
-          <LoginView
-            isSignedIn={isSignedIn}
-            authMode={authMode}
-            setAuthMode={setAuthMode}
-            email={email}
-            setEmail={setEmail}
-            password={password}
-            setPassword={setPassword}
-            fullName={fullName}
-            setFullName={setFullName}
-            authBusy={authBusy}
-            onSubmit={handleAuthSubmit}
-            onSignOut={handleSignOut}
-          />
+            {loading ? (
+              <div style={emptyBoxStyle}>Loading library…</div>
+            ) : error ? (
+              <div
+                style={{
+                  border: '1px solid #fecaca',
+                  background: '#fef2f2',
+                  color: '#b91c1c',
+                  padding: '16px 18px',
+                  borderRadius: '16px',
+                  fontSize: '0.95rem',
+                }}
+              >
+                {error}
+              </div>
+            ) : resources.length ? (
+              <div
+                style={{
+                  display: 'grid',
+                  gap: '14px',
+                }}
+              >
+                {resources.map((resource) => (
+                  <Link
+                    key={resource.id}
+                    href={`/resources/${resource.id}`}
+                    style={{
+                      display: 'block',
+                      textDecoration: 'none',
+                      color: 'inherit',
+                      border: '1px solid #dbe3ee',
+                      background: '#f8fafc',
+                      borderRadius: '18px',
+                      padding: '18px',
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: '6px',
+                        color: '#64748b',
+                        fontSize: '0.87rem',
+                        marginBottom: '10px',
+                      }}
+                    >
+                      <span>{resource.area || 'Uncategorised'}</span>
+                      <span>·</span>
+                      <span>{resource.jurisdiction || 'Unknown jurisdiction'}</span>
+                      <span>·</span>
+                      <span>{resource.type || 'Document'}</span>
+                    </div>
+
+                    <div
+                      style={{
+                        fontSize: '1.1rem',
+                        fontWeight: 750,
+                        marginBottom: resource.summary ? '8px' : '14px',
+                      }}
+                    >
+                      {resource.title}
+                    </div>
+
+                    {resource.summary && (
+                      <div
+                        style={{
+                          color: '#64748b',
+                          lineHeight: 1.6,
+                          marginBottom: '14px',
+                        }}
+                      >
+                        {resource.summary}
+                      </div>
+                    )}
+
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: '12px',
+                        color: '#64748b',
+                        fontSize: '0.9rem',
+                      }}
+                    >
+                      <span>{formatDate(resource.created_at)}</span>
+                      <span style={{ fontWeight: 650, color: '#0f172a' }}>
+                        Open discussion →
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div style={emptyBoxStyle}>No resources in the library yet.</div>
+            )}
+          </section>
         )}
       </div>
     </main>
   );
 }
+
+function Pill({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        padding: '8px 12px',
+        borderRadius: '999px',
+        background: '#eff6ff',
+        color: '#1d4ed8',
+        fontSize: '0.88rem',
+        fontWeight: 650,
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function StatCard({
+  title,
+  text,
+  number = false,
+}: {
+  title: string;
+  text: string;
+  number?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        background: '#f8fafc',
+        border: '1px solid #e2e8f0',
+        borderRadius: '18px',
+        padding: '18px',
+        minHeight: '118px',
+      }}
+    >
+      <div
+        style={{
+          fontSize: number ? '2rem' : '1.1rem',
+          fontWeight: 800,
+          marginBottom: '8px',
+          letterSpacing: '-0.02em',
+        }}
+      >
+        {title}
+      </div>
+      <div
+        style={{
+          color: '#64748b',
+          lineHeight: 1.55,
+          fontSize: '0.95rem',
+        }}
+      >
+        {text}
+      </div>
+    </div>
+  );
+}
+
+function tabStyle(active: boolean): React.CSSProperties {
+  return {
+    border: active ? '1px solid #0f172a' : '1px solid #dbe3ee',
+    background: active ? '#0f172a' : '#ffffff',
+    color: active ? '#ffffff' : '#0f172a',
+    padding: '12px 18px',
+    borderRadius: '14px',
+    fontWeight: 700,
+    fontSize: '0.96rem',
+    cursor: 'pointer',
+    textDecoration: 'none',
+  };
+}
+
+const linkTabStyle: React.CSSProperties = {
+  border: '1px solid #dbe3ee',
+  background: '#ffffff',
+  color: '#0f172a',
+  padding: '12px 18px',
+  borderRadius: '14px',
+  fontWeight: 700,
+  fontSize: '0.96rem',
+  textDecoration: 'none',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+};
+
+const secondaryButtonStyle: React.CSSProperties = {
+  border: '1px solid #dbe3ee',
+  background: '#ffffff',
+  color: '#0f172a',
+  padding: '14px 20px',
+  borderRadius: '14px',
+  fontWeight: 700,
+  fontSize: '0.98rem',
+  textDecoration: 'none',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+};
+
+const emptyBoxStyle: React.CSSProperties = {
+  border: '1px dashed #dbe3ee',
+  background: '#f8fafc',
+  color: '#64748b',
+  padding: '22px 18px',
+  borderRadius: '18px',
+  textAlign: 'center',
+  fontSize: '1rem',
+};
