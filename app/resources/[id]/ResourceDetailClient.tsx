@@ -8,14 +8,25 @@ export default function ResourceDetailClient({ id }: { id: string }) {
   const [resource, setResource] = useState<Resource | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [revisions, setRevisions] = useState<Revision[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
-      const { data: resourceData } = await supabase
+      if (!supabase) {
+        setError('Supabase is not connected.');
+        return;
+      }
+
+      const { data: resourceData, error: resourceError } = await supabase
         .from('resources')
         .select('*')
         .eq('id', id)
         .single();
+
+      if (resourceError) {
+        setError(resourceError.message);
+        return;
+      }
 
       setResource(resourceData);
 
@@ -37,7 +48,8 @@ export default function ResourceDetailClient({ id }: { id: string }) {
     load();
   }, [id]);
 
-  if (!resource) return <div>Loading...</div>;
+  if (error) return <div style={{ padding: 20 }}>{error}</div>;
+  if (!resource) return <div style={{ padding: 20 }}>Loading...</div>;
 
   return (
     <div style={{ padding: 20 }}>
