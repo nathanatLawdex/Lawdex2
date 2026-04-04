@@ -6,11 +6,31 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { formatDate } from '@/lib/utils';
 import type { Resource } from '@/lib/types';
 
+type TabKey = 'home' | 'library' | 'upload' | 'login';
+
 export default function Page() {
   const [resources, setResources] = useState<Resource[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'home' | 'library' | 'upload' | 'login'>('home');
+  const [activeTab, setActiveTab] = useState<TabKey>('home');
+
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const [authMessage, setAuthMessage] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
+
+  const [uploadTitle, setUploadTitle] = useState('');
+  const [uploadSummary, setUploadSummary] = useState('');
+  const [uploadArea, setUploadArea] = useState('');
+  const [uploadJurisdiction, setUploadJurisdiction] = useState('');
+  const [uploadType, setUploadType] = useState('');
+  const [uploadContent, setUploadContent] = useState('');
+  const [uploadMessage, setUploadMessage] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadLoading, setUploadLoading] = useState(false);
 
   useEffect(() => {
     async function loadResources() {
@@ -43,6 +63,102 @@ export default function Page() {
     loadResources();
   }, []);
 
+  async function handleAuthSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!supabase) {
+      setAuthError('Supabase is not connected.');
+      return;
+    }
+
+    setAuthLoading(true);
+    setAuthError(null);
+    setAuthMessage(null);
+
+    try {
+      if (authMode === 'signup') {
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              full_name: fullName,
+            },
+          },
+        });
+
+        if (error) throw error;
+        setAuthMessage('Account created. Check your email if confirmation is enabled.');
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (error) throw error;
+        setAuthMessage('Signed in successfully.');
+      }
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : 'Unable to complete login.');
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function handleUploadSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!supabase) {
+      setUploadError('Supabase is not connected.');
+      return;
+    }
+
+    setUploadLoading(true);
+    setUploadError(null);
+    setUploadMessage(null);
+
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      const user = authData.user;
+
+      if (!user) {
+        throw new Error('You must be signed in to upload.');
+      }
+
+      const { error } = await supabase.from('resources').insert({
+        title: uploadTitle,
+        summary: uploadSummary || null,
+        area: uploadArea || null,
+        jurisdiction: uploadJurisdiction || null,
+        type: uploadType || null,
+        current_content: uploadContent || null,
+        created_by: user.id,
+      });
+
+      if (error) throw error;
+
+      setUploadTitle('');
+      setUploadSummary('');
+      setUploadArea('');
+      setUploadJurisdiction('');
+      setUploadType('');
+      setUploadContent('');
+      setUploadMessage('Resource uploaded successfully.');
+      setActiveTab('library');
+
+      const { data, error: queryError } = await supabase
+        .from('resources')
+        .select('id,title,summary,area,jurisdiction,type,created_at')
+        .order('created_at', { ascending: false });
+
+      if (!queryError) {
+        setResources((data || []) as Resource[]);
+      }
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Unable to upload resource.');
+    } finally {
+      setUploadLoading(false);
+    }
+  }
+
   return (
     <main
       style={{
@@ -62,12 +178,7 @@ export default function Page() {
           boxSizing: 'border-box',
         }}
       >
-        <header
-          style={{
-            width: '100%',
-            marginBottom: '28px',
-          }}
-        >
+        <header style={{ width: '100%', marginBottom: '28px' }}>
           <div
             style={{
               display: 'flex',
@@ -109,27 +220,18 @@ export default function Page() {
                 marginTop: '8px',
               }}
             >
-              <button
-                onClick={() => setActiveTab('home')}
-                style={tabStyle(activeTab === 'home')}
-              >
+              <button onClick={() => setActiveTab('home')} style={tabStyle(activeTab === 'home')}>
                 Home
               </button>
-
-              <button
-                onClick={() => setActiveTab('library')}
-                style={tabStyle(activeTab === 'library')}
-              >
+              <button onClick={() => setActiveTab('library')} style={tabStyle(activeTab === 'library')}>
                 Library
               </button>
-
-              <Link href="/upload" style={linkTabStyle}>
+              <button onClick={() => setActiveTab('upload')} style={tabStyle(activeTab === 'upload')}>
                 Upload
-              </Link>
-
-              <Link href="/login" style={linkTabStyle}>
+              </button>
+              <button onClick={() => setActiveTab('login')} style={tabStyle(activeTab === 'login')}>
                 Lawyer login
-              </Link>
+              </button>
             </nav>
           </div>
         </header>
@@ -146,14 +248,7 @@ export default function Page() {
                 marginBottom: '18px',
               }}
             >
-              <div
-                style={{
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  gap: '8px',
-                  marginBottom: '18px',
-                }}
-              >
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '18px' }}>
                 <Pill>Living documents</Pill>
                 <Pill>Tracked admin decisions</Pill>
                 <Pill>Open legal discussion</Pill>
@@ -194,14 +289,7 @@ export default function Page() {
                     and transparent refinement.
                   </p>
 
-                  <div
-                    style={{
-                      display: 'flex',
-                      gap: '12px',
-                      flexWrap: 'wrap',
-                      marginTop: '24px',
-                    }}
-                  >
+                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginTop: '24px' }}>
                     <button
                       onClick={() => setActiveTab('library')}
                       style={{
@@ -232,158 +320,15 @@ export default function Page() {
                     alignSelf: 'start',
                   }}
                 >
-                  <StatCard
-                    title={String(resources.length)}
-                    text="Resources in discussion"
-                    number
-                  />
-                  <StatCard
-                    title="Original + live"
-                    text="Every upload retains the original and a working copy"
-                  />
-                  <StatCard
-                    title="Comments"
-                    text="Objections and new information sit beside the document"
-                  />
-                  <StatCard
-                    title="History"
-                    text="Admin decisions remain visible and disputable"
-                  />
+                  <StatCard title={String(resources.length)} text="Resources in discussion" number />
+                  <StatCard title="Original + live" text="Every upload retains the original and a working copy" />
+                  <StatCard title="Comments" text="Objections and new information sit beside the document" />
+                  <StatCard title="History" text="Admin decisions remain visible and disputable" />
                 </div>
               </div>
             </section>
 
-            <section
-              style={{
-                background: '#ffffff',
-                border: '1px solid #dbe3ee',
-                borderRadius: '24px',
-                padding: '28px',
-                boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
-              }}
-            >
-              <h2
-                style={{
-                  fontSize: '2rem',
-                  fontWeight: 850,
-                  margin: '0 0 8px 0',
-                  letterSpacing: '-0.02em',
-                }}
-              >
-                Latest uploads
-              </h2>
-
-              <p
-                style={{
-                  margin: '0 0 24px 0',
-                  color: '#64748b',
-                  fontSize: '1rem',
-                }}
-              >
-                Newest to oldest. Click any document to open the live discussion page and the current working copy.
-              </p>
-
-              {loading ? (
-                <div style={emptyBoxStyle}>Loading Pardella…</div>
-              ) : error ? (
-                <div
-                  style={{
-                    border: '1px solid #fecaca',
-                    background: '#fef2f2',
-                    color: '#b91c1c',
-                    padding: '16px 18px',
-                    borderRadius: '16px',
-                    fontSize: '0.95rem',
-                  }}
-                >
-                  {error}
-                </div>
-              ) : resources.length ? (
-                <div
-                  style={{
-                    display: 'grid',
-                    gap: '14px',
-                  }}
-                >
-                  {resources.map((resource) => (
-                    <Link
-                      key={resource.id}
-                      href={`/resources/${resource.id}`}
-                      style={{
-                        display: 'block',
-                        textDecoration: 'none',
-                        color: 'inherit',
-                        border: '1px solid #dbe3ee',
-                        background: '#f8fafc',
-                        borderRadius: '18px',
-                        padding: '18px',
-                        transition: 'transform 0.15s ease, box-shadow 0.15s ease',
-                        boxShadow: '0 1px 2px rgba(15, 23, 42, 0.03)',
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: 'flex',
-                          flexWrap: 'wrap',
-                          gap: '6px',
-                          color: '#64748b',
-                          fontSize: '0.87rem',
-                          marginBottom: '10px',
-                        }}
-                      >
-                        <span>{resource.area || 'Uncategorised'}</span>
-                        <span>·</span>
-                        <span>{resource.jurisdiction || 'Unknown jurisdiction'}</span>
-                        <span>·</span>
-                        <span>{resource.type || 'Document'}</span>
-                      </div>
-
-                      <div
-                        style={{
-                          fontSize: '1.2rem',
-                          fontWeight: 750,
-                          marginBottom: resource.summary ? '8px' : '14px',
-                        }}
-                      >
-                        {resource.title}
-                      </div>
-
-                      {resource.summary && (
-                        <div
-                          style={{
-                            color: '#64748b',
-                            lineHeight: 1.6,
-                            marginBottom: '14px',
-                          }}
-                        >
-                          {resource.summary}
-                        </div>
-                      )}
-
-                      <div
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          gap: '12px',
-                          color: '#64748b',
-                          fontSize: '0.9rem',
-                        }}
-                      >
-                        <span>{formatDate(resource.created_at)}</span>
-                        <span style={{ fontWeight: 650, color: '#0f172a' }}>
-                          Open discussion →
-                        </span>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              ) : (
-                <div style={emptyBoxStyle}>
-                  No resources yet. Upload one to make it appear here.
-                </div>
-              )}
-            </section>
+            <LatestUploadsSection loading={loading} error={error} resources={resources} />
           </>
         )}
 
@@ -408,107 +353,18 @@ export default function Page() {
               Library
             </h2>
 
-            <p
-              style={{
-                margin: '0 0 24px 0',
-                color: '#64748b',
-                fontSize: '1rem',
-              }}
-            >
+            <p style={{ margin: '0 0 24px 0', color: '#64748b', fontSize: '1rem' }}>
               Browse every uploaded resource below.
             </p>
 
             {loading ? (
               <div style={emptyBoxStyle}>Loading library…</div>
             ) : error ? (
-              <div
-                style={{
-                  border: '1px solid #fecaca',
-                  background: '#fef2f2',
-                  color: '#b91c1c',
-                  padding: '16px 18px',
-                  borderRadius: '16px',
-                  fontSize: '0.95rem',
-                }}
-              >
-                {error}
-              </div>
+              <div style={errorBoxStyle}>{error}</div>
             ) : resources.length ? (
-              <div
-                style={{
-                  display: 'grid',
-                  gap: '14px',
-                }}
-              >
+              <div style={{ display: 'grid', gap: '14px' }}>
                 {resources.map((resource) => (
-                  <Link
-                    key={resource.id}
-                    href={`/resources/${resource.id}`}
-                    style={{
-                      display: 'block',
-                      textDecoration: 'none',
-                      color: 'inherit',
-                      border: '1px solid #dbe3ee',
-                      background: '#f8fafc',
-                      borderRadius: '18px',
-                      padding: '18px',
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: 'flex',
-                        flexWrap: 'wrap',
-                        gap: '6px',
-                        color: '#64748b',
-                        fontSize: '0.87rem',
-                        marginBottom: '10px',
-                      }}
-                    >
-                      <span>{resource.area || 'Uncategorised'}</span>
-                      <span>·</span>
-                      <span>{resource.jurisdiction || 'Unknown jurisdiction'}</span>
-                      <span>·</span>
-                      <span>{resource.type || 'Document'}</span>
-                    </div>
-
-                    <div
-                      style={{
-                        fontSize: '1.1rem',
-                        fontWeight: 750,
-                        marginBottom: resource.summary ? '8px' : '14px',
-                      }}
-                    >
-                      {resource.title}
-                    </div>
-
-                    {resource.summary && (
-                      <div
-                        style={{
-                          color: '#64748b',
-                          lineHeight: 1.6,
-                          marginBottom: '14px',
-                        }}
-                      >
-                        {resource.summary}
-                      </div>
-                    )}
-
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        gap: '12px',
-                        color: '#64748b',
-                        fontSize: '0.9rem',
-                      }}
-                    >
-                      <span>{formatDate(resource.created_at)}</span>
-                      <span style={{ fontWeight: 650, color: '#0f172a' }}>
-                        Open discussion →
-                      </span>
-                    </div>
-                  </Link>
+                  <ResourceCard key={resource.id} resource={resource} />
                 ))}
               </div>
             ) : (
@@ -516,8 +372,303 @@ export default function Page() {
             )}
           </section>
         )}
+
+        {activeTab === 'upload' && (
+          <section
+            style={{
+              background: '#ffffff',
+              border: '1px solid #dbe3ee',
+              borderRadius: '24px',
+              padding: '28px',
+              boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
+            }}
+          >
+            <h2
+              style={{
+                fontSize: '2rem',
+                fontWeight: 850,
+                margin: '0 0 8px 0',
+                letterSpacing: '-0.02em',
+              }}
+            >
+              Upload
+            </h2>
+
+            <p style={{ margin: '0 0 24px 0', color: '#64748b', fontSize: '1rem' }}>
+              Upload a new resource into Pardella.
+            </p>
+
+            {uploadError && <div style={errorBoxStyle}>{uploadError}</div>}
+            {uploadMessage && <div style={successBoxStyle}>{uploadMessage}</div>}
+
+            <form onSubmit={handleUploadSubmit} style={{ display: 'grid', gap: '14px' }}>
+              <input
+                value={uploadTitle}
+                onChange={(e) => setUploadTitle(e.target.value)}
+                placeholder="Title"
+                style={inputStyle}
+                required
+              />
+              <input
+                value={uploadSummary}
+                onChange={(e) => setUploadSummary(e.target.value)}
+                placeholder="Summary"
+                style={inputStyle}
+              />
+              <input
+                value={uploadArea}
+                onChange={(e) => setUploadArea(e.target.value)}
+                placeholder="Area"
+                style={inputStyle}
+              />
+              <input
+                value={uploadJurisdiction}
+                onChange={(e) => setUploadJurisdiction(e.target.value)}
+                placeholder="Jurisdiction"
+                style={inputStyle}
+              />
+              <input
+                value={uploadType}
+                onChange={(e) => setUploadType(e.target.value)}
+                placeholder="Type"
+                style={inputStyle}
+              />
+              <textarea
+                value={uploadContent}
+                onChange={(e) => setUploadContent(e.target.value)}
+                placeholder="Working copy text"
+                style={{ ...inputStyle, minHeight: '180px', resize: 'vertical' }}
+              />
+              <button
+                type="submit"
+                disabled={uploadLoading}
+                style={{
+                  border: 'none',
+                  background: '#0f172a',
+                  color: '#fff',
+                  padding: '14px 20px',
+                  borderRadius: '14px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  fontSize: '0.98rem',
+                  width: 'fit-content',
+                }}
+              >
+                {uploadLoading ? 'Uploading…' : 'Upload resource'}
+              </button>
+            </form>
+          </section>
+        )}
+
+        {activeTab === 'login' && (
+          <section
+            style={{
+              background: '#ffffff',
+              border: '1px solid #dbe3ee',
+              borderRadius: '24px',
+              padding: '28px',
+              boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
+            }}
+          >
+            <h2
+              style={{
+                fontSize: '2rem',
+                fontWeight: 850,
+                margin: '0 0 8px 0',
+                letterSpacing: '-0.02em',
+              }}
+            >
+              Lawyer login
+            </h2>
+
+            <p style={{ margin: '0 0 24px 0', color: '#64748b', fontSize: '1rem' }}>
+              Sign in to comment, upload, and participate in document revision.
+            </p>
+
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '18px', flexWrap: 'wrap' }}>
+              <button onClick={() => setAuthMode('signin')} style={tabStyle(authMode === 'signin')}>
+                Sign in
+              </button>
+              <button onClick={() => setAuthMode('signup')} style={tabStyle(authMode === 'signup')}>
+                Create account
+              </button>
+            </div>
+
+            {authError && <div style={errorBoxStyle}>{authError}</div>}
+            {authMessage && <div style={successBoxStyle}>{authMessage}</div>}
+
+            <form onSubmit={handleAuthSubmit} style={{ display: 'grid', gap: '14px', maxWidth: '560px' }}>
+              {authMode === 'signup' && (
+                <input
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Full name"
+                  style={inputStyle}
+                />
+              )}
+              <input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Email"
+                type="email"
+                style={inputStyle}
+                required
+              />
+              <input
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Password"
+                type="password"
+                style={inputStyle}
+                required
+              />
+              <button
+                type="submit"
+                disabled={authLoading}
+                style={{
+                  border: 'none',
+                  background: '#0f172a',
+                  color: '#fff',
+                  padding: '14px 20px',
+                  borderRadius: '14px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  fontSize: '0.98rem',
+                  width: 'fit-content',
+                }}
+              >
+                {authLoading
+                  ? 'Please wait…'
+                  : authMode === 'signin'
+                  ? 'Sign in'
+                  : 'Create account'}
+              </button>
+            </form>
+          </section>
+        )}
       </div>
     </main>
+  );
+}
+
+function LatestUploadsSection({
+  loading,
+  error,
+  resources,
+}: {
+  loading: boolean;
+  error: string | null;
+  resources: Resource[];
+}) {
+  return (
+    <section
+      style={{
+        background: '#ffffff',
+        border: '1px solid #dbe3ee',
+        borderRadius: '24px',
+        padding: '28px',
+        boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
+      }}
+    >
+      <h2
+        style={{
+          fontSize: '2rem',
+          fontWeight: 850,
+          margin: '0 0 8px 0',
+          letterSpacing: '-0.02em',
+        }}
+      >
+        Latest uploads
+      </h2>
+
+      <p style={{ margin: '0 0 24px 0', color: '#64748b', fontSize: '1rem' }}>
+        Newest to oldest. Click any document to open the live discussion page and the current working copy.
+      </p>
+
+      {loading ? (
+        <div style={emptyBoxStyle}>Loading Pardella…</div>
+      ) : error ? (
+        <div style={errorBoxStyle}>{error}</div>
+      ) : resources.length ? (
+        <div style={{ display: 'grid', gap: '14px' }}>
+          {resources.map((resource) => (
+            <ResourceCard key={resource.id} resource={resource} />
+          ))}
+        </div>
+      ) : (
+        <div style={emptyBoxStyle}>No resources yet. Upload one to make it appear here.</div>
+      )}
+    </section>
+  );
+}
+
+function ResourceCard({ resource }: { resource: Resource }) {
+  return (
+    <Link
+      href={`/resources/${resource.id}`}
+      style={{
+        display: 'block',
+        textDecoration: 'none',
+        color: 'inherit',
+        border: '1px solid #dbe3ee',
+        background: '#f8fafc',
+        borderRadius: '18px',
+        padding: '18px',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '6px',
+          color: '#64748b',
+          fontSize: '0.87rem',
+          marginBottom: '10px',
+        }}
+      >
+        <span>{resource.area || 'Uncategorised'}</span>
+        <span>·</span>
+        <span>{resource.jurisdiction || 'Unknown jurisdiction'}</span>
+        <span>·</span>
+        <span>{resource.type || 'Document'}</span>
+      </div>
+
+      <div
+        style={{
+          fontSize: '1.2rem',
+          fontWeight: 750,
+          marginBottom: resource.summary ? '8px' : '14px',
+        }}
+      >
+        {resource.title}
+      </div>
+
+      {resource.summary && (
+        <div
+          style={{
+            color: '#64748b',
+            lineHeight: 1.6,
+            marginBottom: '14px',
+          }}
+        >
+          {resource.summary}
+        </div>
+      )}
+
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '12px',
+          color: '#64748b',
+          fontSize: '0.9rem',
+        }}
+      >
+        <span>{formatDate(resource.created_at)}</span>
+        <span style={{ fontWeight: 650, color: '#0f172a' }}>Open discussion →</span>
+      </div>
+    </Link>
   );
 }
 
@@ -596,20 +747,6 @@ function tabStyle(active: boolean): React.CSSProperties {
   };
 }
 
-const linkTabStyle: React.CSSProperties = {
-  border: '1px solid #dbe3ee',
-  background: '#ffffff',
-  color: '#0f172a',
-  padding: '12px 18px',
-  borderRadius: '14px',
-  fontWeight: 700,
-  fontSize: '0.96rem',
-  textDecoration: 'none',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-};
-
 const secondaryButtonStyle: React.CSSProperties = {
   border: '1px solid #dbe3ee',
   background: '#ffffff',
@@ -622,6 +759,36 @@ const secondaryButtonStyle: React.CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
+};
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '14px 16px',
+  borderRadius: '14px',
+  border: '1px solid #dbe3ee',
+  background: '#fff',
+  fontSize: '0.98rem',
+  boxSizing: 'border-box',
+};
+
+const errorBoxStyle: React.CSSProperties = {
+  border: '1px solid #fecaca',
+  background: '#fef2f2',
+  color: '#b91c1c',
+  padding: '16px 18px',
+  borderRadius: '16px',
+  fontSize: '0.95rem',
+  marginBottom: '16px',
+};
+
+const successBoxStyle: React.CSSProperties = {
+  border: '1px solid #bbf7d0',
+  background: '#f0fdf4',
+  color: '#166534',
+  padding: '16px 18px',
+  borderRadius: '16px',
+  fontSize: '0.95rem',
+  marginBottom: '16px',
 };
 
 const emptyBoxStyle: React.CSSProperties = {
