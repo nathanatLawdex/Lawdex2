@@ -110,7 +110,7 @@ function UploadSection() {
   title: fileName || 'Untitled',
   summary: null,
   area: 'General',
-  jurisdiction: null,
+  jurisdiction: 'Australia',
   type: file ? 'DOCX Upload' : 'Text Entry',
   current_content: text,
   original_file_url: url,
