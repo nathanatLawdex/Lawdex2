@@ -108,7 +108,7 @@ function UploadSection() {
 
     const { error } = await supabase.from('resources').insert({
   title: fileName || 'Untitled',
-  summary: null,
+  summary: 'Advice precedent',
   area: 'General',
   jurisdiction: 'Australia',
   type: file ? 'DOCX Upload' : 'Text Entry',
