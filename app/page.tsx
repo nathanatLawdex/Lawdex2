@@ -1,508 +1,228 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
-import { FileText, Home, Library, MessageSquare, Scale, Shield, Upload, UserCircle2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import type { Profile, Resource } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
+import type { Resource } from '@/lib/types';
 
-function Header({
-  page,
-  setPage,
-  signedIn,
-  profile,
-  onSignOut,
-}: {
-  page: string;
-  setPage: (page: string) => void;
-  signedIn: boolean;
-  profile: Profile | null;
-  onSignOut: () => void;
-}) {
-  return (
-    <header className="header">
-      <div className="container header-row">
-        <div className="brand">
-          <div className="brand-badge"><Shield size={20} /></div>
-          <div>
-            <div className="brand-name">Pardella</div>
-            <div className="brand-sub">Collaborative legal discussion, living advices, and tracked revisions.</div>
-          </div>
-        </div>
-        <nav className="nav">
-          <button className={page === 'home' ? 'action-btn' : 'ghost-btn'} onClick={() => setPage('home')}><Home size={16} /> Home</button>
-          <button className={page === 'library' ? 'action-btn' : 'ghost-btn'} onClick={() => setPage('library')}><Library size={16} /> Library</button>
-          <button className={page === 'upload' ? 'action-btn' : 'ghost-btn'} onClick={() => setPage('upload')}><Upload size={16} /> Upload</button>
-          {!signedIn ? (
-            <button className={page === 'auth' ? 'action-btn' : 'ghost-btn'} onClick={() => setPage('auth')}><UserCircle2 size={16} /> Lawyer login</button>
-          ) : (
-            <>
-              {profile?.role === 'admin' && <Link className="ghost-btn" href="/admin">Admin</Link>}
-              <button className="ghost-btn" onClick={onSignOut}>Sign out</button>
-            </>
-          )}
-        </nav>
-      </div>
-    </header>
-  );
-}
+type TabKey = 'home' | 'library' | 'upload' | 'login';
 
-function LoginCard({
-  onSignedIn,
-}: {
-  onSignedIn: () => void;
-}) {
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
-  const [fullName, setFullName] = useState('');
+export default function Page() {
+  const [resources, setResources] = useState<Resource[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<TabKey>('home');
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const [authMessage, setAuthMessage] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSuccess(null);
-    if (!supabase) {
-      setError('Supabase is not connected yet. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel.');
-      return;
-    }
-    setLoading(true);
-    try {
-      if (mode === 'signup') {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: { full_name: fullName || email, role: 'member' },
-          },
-        });
-        if (error) throw error;
-        if (data.user) {
-          setSuccess('Account created. If email confirmation is enabled in Supabase, confirm the email and then sign in.');
+  const [title, setTitle] = useState('');
+  const [summary, setSummary] = useState('');
+  const [area, setArea] = useState('');
+  const [jurisdiction, setJurisdiction] = useState('');
+  const [type, setType] = useState('');
+  const [workingText, setWorkingText] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+
+  const [message, setMessage] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+
+  useEffect(() => {
+    async function loadResources() {
+      try {
+        setError(null);
+
+        if (!isSupabaseConfigured() || !supabase) {
+          setError('Supabase is not connected.');
+          return;
         }
+
+        const { data, error: queryError } = await supabase
+          .from('resources')
+          .select('id,title,summary,area,jurisdiction,type,created_at')
+          .order('created_at', { ascending: false });
+
+        if (queryError) {
+          setError(queryError.message);
+          return;
+        }
+
+        setResources((data || []) as Resource[]);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Unable to load data.');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadResources();
+  }, []);
+
+  async function handleAuthSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!supabase) return;
+
+    setAuthLoading(true);
+    setAuthError(null);
+    setAuthMessage(null);
+
+    try {
+      if (authMode === 'signup') {
+        const { error } = await supabase.auth.signUp({ email, password });
+        if (error) throw error;
+        setAuthMessage('Account created.');
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        onSignedIn();
+        setAuthMessage('Signed in.');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to complete request.');
+      setAuthError(err instanceof Error ? err.message : 'Auth error');
     } finally {
-      setLoading(false);
+      setAuthLoading(false);
     }
-  };
+  }
 
-  return (
-    <div className="login-shell card card-pad">
-      <h2 className="section-title">Member access</h2>
-      <p className="section-copy">Create an account or sign in. Pardella uses Supabase for real authentication and stored legal discussion.</p>
-      <div className="tab-row">
-        <button className={mode === 'signin' ? 'active' : ''} onClick={() => setMode('signin')}>Sign in</button>
-        <button className={mode === 'signup' ? 'active' : ''} onClick={() => setMode('signup')}>Create account</button>
-      </div>
-      <form className="stack" onSubmit={submit}>
-        {mode === 'signup' && <input className="input" placeholder="Full name" value={fullName} onChange={(e) => setFullName(e.target.value)} />}
-        <input className="input" type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-        <input className="input" type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
-        <div className="hero-actions">
-          <button className="action-btn" type="submit" disabled={loading}>{loading ? 'Please wait...' : mode === 'signin' ? 'Sign in' : 'Create account'}</button>
-          <button className="ghost-btn" type="button" onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}>
-            {mode === 'signin' ? 'Need an account?' : 'Already have an account?'}
-          </button>
-        </div>
-      </form>
-      {error && <div className="error-box">{error}</div>}
-      {success && <div className="success-box">{success}</div>}
-      <div className="footer-note">
-        This build treats uploaded files as originals and keeps a separate live editable working copy for revisions and admin decisions.
-      </div>
-    </div>
-  );
-}
-
-function UploadCard({
-  signedIn,
-  onUploaded,
-}: {
-  signedIn: boolean;
-  onUploaded: () => void;
-}) {
-  const [title, setTitle] = useState('');
-  const [summary, setSummary] = useState('');
-  const [area, setArea] = useState('Property');
-  const [jurisdiction, setJurisdiction] = useState('QLD');
-  const [type, setType] = useState('Advice');
-  const [workingText, setWorkingText] = useState('');
-  const [file, setFile] = useState<File | null>(null);
-  const [extracting, setExtracting] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-
-  const handleFileChange = async (nextFile: File | null) => {
-    setFile(nextFile);
-    setError(null);
-    setMessage(null);
-
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const nextFile = e.target.files?.[0];
     if (!nextFile) return;
 
-    const lowerName = nextFile.name.toLowerCase();
-    const isDocx = lowerName.endsWith('.docx');
-
-    if (!isDocx) {
-      setMessage('Original file selected. Live extraction currently works for .docx files. You can still type or paste the working copy below.');
-      return;
-    }
-
-    setExtracting(true);
-    try {
-      const mammoth = await import('mammoth/mammoth.browser');
-      const arrayBuffer = await nextFile.arrayBuffer();
-      const result = await mammoth.extractRawText({ arrayBuffer });
-      const extracted = result.value.replace(/
-{3,}/g, '
-
-').trim();
-
-      if (!extracted) {
-        setMessage('The .docx uploaded successfully, but no text could be extracted. You can still type or paste the working copy below.');
-      } else {
-        setWorkingText(extracted);
-        setMessage('DOCX text extracted into the live working copy. You can now edit it before upload.');
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to extract text from the DOCX file. You can still upload the original and type or paste the live working copy below.');
-    } finally {
-      setExtracting(false);
-    }
-  };
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
+    setFile(nextFile);
     setMessage(null);
-    if (!supabase) {
-      setError('Supabase is not connected.');
-      return;
-    }
-    if (!signedIn) {
-      setError('Sign in before uploading.');
-      return;
-    }
-    if (!title.trim()) {
-      setError('Title is required.');
-      return;
-    }
-    if (!file && !workingText.trim()) {
-      setError('Upload a DOCX/original file or enter a live working copy.');
-      return;
-    }
-    setSaving(true);
-    try {
-      const { data: authData } = await supabase.auth.getUser();
-      const user = authData.user;
-      if (!user) throw new Error('No signed-in user found.');
+    setUploadError(null);
 
-      let originalFileUrl: string | null = null;
-      let originalFileName: string | null = null;
+    if (nextFile.name.endsWith('.docx')) {
+      setExtracting(true);
+      try {
+        const mammoth = await import('mammoth/mammoth.browser');
+        const arrayBuffer = await nextFile.arrayBuffer();
+        const result = await mammoth.extractRawText({ arrayBuffer });
+
+        const extracted = result.value.replace(/\n{3,}/g, '\n\n').trim();
+
+        if (extracted) {
+          setWorkingText(extracted);
+          setMessage('DOCX text extracted. You can edit before upload.');
+        } else {
+          setMessage('No text extracted — you can still type below.');
+        }
+      } catch (err) {
+        setUploadError('Failed to extract DOCX.');
+      } finally {
+        setExtracting(false);
+      }
+    }
+  }
+
+  async function handleUpload(e: React.FormEvent) {
+    e.preventDefault();
+    if (!supabase) return;
+
+    setUploading(true);
+    setUploadError(null);
+    setMessage(null);
+
+    try {
+      const { data: auth } = await supabase.auth.getUser();
+      if (!auth.user) throw new Error('You must be logged in.');
+
+      let fileUrl = null;
+      let fileName = null;
+
       if (file) {
-        const path = `${user.id}/${Date.now()}-${file.name}`;
-        const { error: uploadError } = await supabase.storage.from('resources').upload(path, file, { upsert: false });
-        if (uploadError) throw uploadError;
-        const { data } = supabase.storage.from('resources').getPublicUrl(path);
-        originalFileUrl = data.publicUrl;
-        originalFileName = file.name;
+        const filePath = `${Date.now()}-${file.name}`;
+
+        const { error: uploadErr } = await supabase.storage
+          .from('resources')
+          .upload(filePath, file);
+
+        if (uploadErr) throw uploadErr;
+
+        const { data } = supabase.storage.from('resources').getPublicUrl(filePath);
+
+        fileUrl = data.publicUrl;
+        fileName = file.name;
       }
 
-      const payload = {
-        title: title.trim(),
-        summary: summary.trim() || null,
+      const { error } = await supabase.from('resources').insert({
+        title,
+        summary,
         area,
         jurisdiction,
         type,
-        current_content: workingText.trim() || null,
-        original_file_url: originalFileUrl,
-        original_file_name: originalFileName,
-        created_by: user.id,
-      };
+        current_content: workingText,
+        original_file_url: fileUrl,
+        original_file_name: fileName,
+        created_by: auth.user.id,
+      });
 
-      const { data: inserted, error: insertError } = await supabase
-        .from('resources')
-        .insert(payload)
-        .select('id')
-        .single();
-      if (insertError) throw insertError;
+      if (error) throw error;
 
-      if (workingText.trim()) {
-        const { error: revError } = await supabase.from('revisions').insert({
-          resource_id: inserted.id,
-          content: workingText,
-          status: 'accepted',
-          note: file ? 'Initial working copy extracted or refined from uploaded original' : 'Initial working copy entered directly in Pardella',
-          created_by: user.id,
-          author_label: 'Original upload',
-        });
-        if (revError) throw revError;
-      }
-
-      setMessage('Resource uploaded. The original file has been retained and the live working copy is now available for editing and comments.');
-      setTitle('');
-      setSummary('');
-      setWorkingText('');
-      setFile(null);
-      onUploaded();
+      setMessage('Uploaded successfully.');
+      setActiveTab('library');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed.');
+      setUploadError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
-      setSaving(false);
+      setUploading(false);
     }
-  };
+  }
 
   return (
-    <div className="card card-pad">
-      <h2 className="section-title">Upload a Word document and create a live working copy</h2>
-      <p className="section-copy">Upload the original document so it can always be downloaded later. If the file is a <strong>.docx</strong>, Pardella will extract the text into the live working copy below so members can edit it in-browser. You can also type or paste additional text before saving.</p>
-      <form className="stack" onSubmit={submit}>
-        <input className="input" placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
-        <textarea className="textarea" placeholder="Summary or issue note" value={summary} onChange={(e) => setSummary(e.target.value)} />
-        <div className="search-row">
-          <select className="select" value={area} onChange={(e) => setArea(e.target.value)}>
-            <option>Property</option>
-            <option>Commercial</option>
-            <option>Litigation</option>
-            <option>Planning & Environment</option>
-            <option>Construction</option>
-            <option>Tax</option>
-          </select>
-          <select className="select" value={jurisdiction} onChange={(e) => setJurisdiction(e.target.value)}>
-            <option>QLD</option>
-            <option>Federal</option>
-            <option>NSW</option>
-            <option>National</option>
-          </select>
-          <select className="select" value={type} onChange={(e) => setType(e.target.value)}>
-            <option>Advice</option>
-            <option>Checklist</option>
-            <option>Case note</option>
-            <option>Research memo</option>
-            <option>Submission</option>
-          </select>
-          <label className="soft-btn" style={{display:'flex',alignItems:'center',justifyContent:'center'}}>
-            <input type="file" accept=".docx,.doc" hidden onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)} />
-            {file ? file.name : 'Choose original Word file'}
-          </label>
-        </div>
-        {extracting && <div className="notice">Extracting text from DOCX…</div>}
-        <textarea className="textarea editor" placeholder="The live working copy appears here. DOCX text will be extracted here automatically, and you can edit or supplement it before upload." value={workingText} onChange={(e) => setWorkingText(e.target.value)} />
-        <div className="hero-actions">
-          <button className="action-btn" type="submit" disabled={saving || extracting}>{saving ? 'Saving…' : 'Upload resource'}</button>
-        </div>
-      </form>
-      {error && <div className="error-box">{error}</div>}
-      {message && <div className="success-box">{message}</div>}
-      <div className="footer-note">
-        DOCX files are the supported first version for automatic extraction into the live document. The original file is still retained separately for download and replication.
+    <main style={{ maxWidth: 1100, margin: '0 auto', padding: 24 }}>
+      <h1 style={{ textAlign: 'center' }}>Pardella</h1>
+
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginBottom: 20 }}>
+        <button onClick={() => setActiveTab('home')}>Home</button>
+        <button onClick={() => setActiveTab('library')}>Library</button>
+        <button onClick={() => setActiveTab('upload')}>Upload</button>
+        <button onClick={() => setActiveTab('login')}>Login</button>
       </div>
-    </div>
-  );
-}
 
-function HomeView({ resources }: { resources: Resource[] }) {
-  return (
-    <div className="stack">
-      <section className="grid-2">
-        <div className="card card-pad">
-          <div className="eyebrow">
-            <span className="badge">Living documents</span>
-            <span className="badge">Tracked admin decisions</span>
-            <span className="badge">Open legal discussion</span>
-          </div>
-          <h1 className="hero-title">Pardella turns legal work into living documents, not static uploads.</h1>
-          <p className="hero-copy">
-            Members upload original materials, maintain a live editable working copy, debate objections in comments, and keep every admin acceptance or rejection visible. The goal is practical legal accuracy, current case law awareness, and transparent refinement.
-          </p>
-          <div className="hero-actions">
-            <Link href="#recent" className="action-btn">See latest uploads</Link>
-            <Link href="/admin" className="ghost-btn">Admin decisions</Link>
-          </div>
-        </div>
-        <div className="card card-pad">
-          <div className="stats-grid">
-            <div className="stat-box"><div className="stat-value">{resources.length}</div><div className="stat-label">Resources in discussion</div></div>
-            <div className="stat-box"><div className="stat-value">Original + live</div><div className="stat-label">Every upload retains the original and a working copy</div></div>
-            <div className="stat-box"><div className="stat-value">Comments</div><div className="stat-label">Objections and new information sit beside the document</div></div>
-            <div className="stat-box"><div className="stat-value">History</div><div className="stat-label">Admin decisions remain visible and disputable</div></div>
-          </div>
-          <div className="notice">
-            MVP note: in-browser editing is implemented as a live working text version. Original PDFs/DOCX files remain separately accessible and untouched.
-          </div>
-        </div>
-      </section>
+      {activeTab === 'upload' && (
+        <form onSubmit={handleUpload}>
+          <input placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} required />
+          <input placeholder="Summary" value={summary} onChange={(e) => setSummary(e.target.value)} />
+          <input type="file" onChange={handleFileChange} />
+          {extracting && <p>Extracting DOCX…</p>}
+          <textarea
+            placeholder="Working document"
+            value={workingText}
+            onChange={(e) => setWorkingText(e.target.value)}
+          />
+          <button type="submit">{uploading ? 'Uploading…' : 'Upload'}</button>
+          {message && <p>{message}</p>}
+          {uploadError && <p style={{ color: 'red' }}>{uploadError}</p>}
+        </form>
+      )}
 
-      <section id="recent" className="card card-pad">
-        <h2 className="section-title">Latest uploads</h2>
-        <p className="section-copy">Newest to oldest. Click any document to open the live discussion page and the current working copy.</p>
-        {resources.length === 0 ? (
-          <div className="empty">No resources yet. Upload one to make it appear here.</div>
-        ) : (
-          <div className="home-recent-grid">
-            {resources.map((resource) => (
-              <Link key={resource.id} href={`/resources/${resource.id}`} className="resource-card">
-                <div className="resource-head">
-                  <div>
-                    <h3 className="resource-title">{resource.title}</h3>
-                    <div className="resource-meta">
-                      {resource.area && <span className="badge">{resource.area}</span>}
-                      {resource.jurisdiction && <span className="badge">{resource.jurisdiction}</span>}
-                      {resource.type && <span className="badge">{resource.type}</span>}
-                    </div>
-                  </div>
-                  <div className="tiny muted">{formatDate(resource.created_at)}</div>
-                </div>
-                <p className="muted">{resource.summary || 'No summary provided.'}</p>
-                <div className="tiny linkish">Open live document →</div>
-              </Link>
-            ))}
-          </div>
-        )}
-      </section>
-    </div>
-  );
-}
+      {activeTab === 'login' && (
+        <form onSubmit={handleAuthSubmit}>
+          <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
+          <input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" />
+          <button>{authLoading ? '...' : authMode === 'signin' ? 'Sign in' : 'Sign up'}</button>
+          {authError && <p style={{ color: 'red' }}>{authError}</p>}
+          {authMessage && <p>{authMessage}</p>}
+        </form>
+      )}
 
-function LibraryView({ resources }: { resources: Resource[] }) {
-  const [query, setQuery] = useState('');
-  const [area, setArea] = useState('All');
-  const [jurisdiction, setJurisdiction] = useState('All');
-  const filtered = useMemo(() => resources.filter((resource) => {
-    const q = query.toLowerCase();
-    const matchesQuery = !q || [resource.title, resource.summary, resource.area, resource.jurisdiction, resource.type].join(' ').toLowerCase().includes(q);
-    const matchesArea = area === 'All' || resource.area === area;
-    const matchesJurisdiction = jurisdiction === 'All' || resource.jurisdiction === jurisdiction;
-    return matchesQuery && matchesArea && matchesJurisdiction;
-  }), [resources, query, area, jurisdiction]);
-
-  return (
-    <div className="stack">
-      <div className="search-row">
-        <input className="input" placeholder="Search title, issue, practice area, jurisdiction" value={query} onChange={(e) => setQuery(e.target.value)} />
-        <select className="select" value={area} onChange={(e) => setArea(e.target.value)}>
-          <option>All</option><option>Property</option><option>Commercial</option><option>Litigation</option><option>Planning & Environment</option><option>Construction</option><option>Tax</option>
-        </select>
-        <select className="select" value={jurisdiction} onChange={(e) => setJurisdiction(e.target.value)}>
-          <option>All</option><option>QLD</option><option>Federal</option><option>NSW</option><option>National</option>
-        </select>
-        <div className="soft-btn">{filtered.length} results</div>
-      </div>
-      <div className="recent-list">
-        {filtered.map((resource) => (
-          <Link key={resource.id} href={`/resources/${resource.id}`} className="resource-card">
-            <div className="resource-head">
-              <div>
-                <h3 className="resource-title">{resource.title}</h3>
-                <div className="resource-meta">
-                  {resource.area && <span className="badge">{resource.area}</span>}
-                  {resource.jurisdiction && <span className="badge">{resource.jurisdiction}</span>}
-                  {resource.type && <span className="badge">{resource.type}</span>}
-                </div>
-              </div>
-              <div className="tiny muted">{formatDate(resource.created_at)}</div>
+      {activeTab === 'library' && (
+        <div>
+          {loading && <p>Loading…</p>}
+          {error && <p>{error}</p>}
+          {resources.map((r) => (
+            <div key={r.id}>
+              <Link href={`/resources/${r.id}`}>{r.title}</Link>
             </div>
-            <p className="muted">{resource.summary || 'No summary provided.'}</p>
-            <div className="tiny linkish">Open document discussion →</div>
-          </Link>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-export default function Page() {
-  const [page, setPage] = useState<'home' | 'library' | 'upload' | 'auth'>('home');
-  const [resources, setResources] = useState<Resource[]>([]);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [signedIn, setSignedIn] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = async () => {
-    if (!supabase) {
-      setError('Supabase is not connected yet. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel.');
-      setLoading(false);
-      return;
-    }
-    setError(null);
-    setLoading(true);
-    const { data: sessionData } = await supabase.auth.getSession();
-    const session = sessionData.session;
-    setSignedIn(Boolean(session));
-
-    if (session?.user) {
-      const { data: existingProfile } = await supabase.from('profiles').select('id, full_name, role').eq('id', session.user.id).maybeSingle();
-      if (existingProfile) {
-        setProfile(existingProfile as Profile);
-      } else {
-        const insertPayload = {
-          id: session.user.id,
-          full_name: (session.user.user_metadata?.full_name as string | undefined) || session.user.email || 'Member',
-          role: 'member',
-        };
-        await supabase.from('profiles').insert(insertPayload);
-        setProfile(insertPayload as Profile);
-      }
-    } else {
-      setProfile(null);
-    }
-
-    const { data, error: resourceError } = await supabase
-      .from('resources')
-      .select('id, title, summary, area, jurisdiction, type, original_file_url, original_file_name, current_content, created_at, updated_at, created_by')
-      .order('created_at', { ascending: false });
-    if (resourceError) setError(resourceError.message);
-    setResources((data || []) as Resource[]);
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    load();
-    if (!supabase) return;
-    const { data } = supabase.auth.onAuthStateChange(() => load());
-    return () => data.subscription.unsubscribe();
-  }, []);
-
-  const signOut = async () => {
-    if (!supabase) return;
-    await supabase.auth.signOut();
-    setSignedIn(false);
-    setProfile(null);
-    setPage('home');
-  };
-
-  return (
-    <div className="page-shell">
-      <Header page={page} setPage={(p) => setPage(p as typeof page)} signedIn={signedIn} profile={profile} onSignOut={signOut} />
-      <main className="main">
-        <div className="container stack">
-          {!isSupabaseConfigured() && (
-            <div className="notice">Supabase is not connected yet. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel, then create the schema and the <code>resources</code> storage bucket.</div>
-          )}
-          {error && <div className="error-box">{error}</div>}
-          {loading ? (
-            <div className="card card-pad">Loading Pardella…</div>
-          ) : page === 'home' ? (
-            <HomeView resources={resources} />
-          ) : page === 'library' ? (
-            <LibraryView resources={resources} />
-          ) : page === 'upload' ? (
-            <UploadCard signedIn={signedIn} onUploaded={load} />
-          ) : (
-            <LoginCard onSignedIn={load} />
-          )}
+          ))}
         </div>
-      </main>
-    </div>
+      )}
+    </main>
   );
 }
