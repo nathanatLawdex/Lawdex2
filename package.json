@@ -1,0 +1,26 @@
+{
+  "name": "pardella",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.8",
+    "framer-motion": "^12.23.12",
+    "lucide-react": "^0.511.0",
+    "next": "15.4.10",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "mammoth": "^1.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.1",
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.2",
+    "typescript": "^5.8.3"
+  }
+}
