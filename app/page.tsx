@@ -107,16 +107,16 @@ function UploadSection() {
     }
 
     const { error } = await supabase.from('resources').insert({
-      title: fileName || 'Untitled',
-      summary: null,
-      area: null,
-      jurisdiction: null,
-      type: file ? 'DOCX Upload' : 'Text Entry',
-      current_content: text,
-      original_file_url: url,
-      original_file_name: fileName,
-      created_by: auth.user.id,
-    });
+  title: fileName || 'Untitled',
+  summary: null,
+  area: 'General',
+  jurisdiction: null,
+  type: file ? 'DOCX Upload' : 'Text Entry',
+  current_content: text,
+  original_file_url: url,
+  original_file_name: fileName,
+  created_by: auth.user.id,
+});
 
     if (error) {
       setErr(error.message);
