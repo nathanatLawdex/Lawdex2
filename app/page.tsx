@@ -106,9 +106,12 @@ function UploadSection() {
       fileName = file.name;
     }
 
-    const { error } = await supabase.from('resources').insert({
+   const alias =
+  auth.user.email?.split('@')[0] || 'Member';
+
+const { error } = await supabase.from('resources').insert({
   title: fileName || 'Untitled',
-  summary: 'text.slice(0, 200)',
+  summary: text.slice(0, 200),
   area: 'General',
   jurisdiction: 'Australia',
   type: file ? 'DOCX Upload' : 'Text Entry',
@@ -116,6 +119,7 @@ function UploadSection() {
   original_file_url: url,
   original_file_name: fileName,
   created_by: auth.user.id,
+  author_alias: alias,
 });
 
     if (error) {
