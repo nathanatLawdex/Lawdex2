@@ -64,5 +64,3 @@ export type ResourceFile = {
   note: string | null;
   created_at: string;
 };
-Sent
-Write to
