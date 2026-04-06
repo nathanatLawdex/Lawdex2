@@ -13,6 +13,7 @@ export default function Page() {
   const [resources, setResources] = useState<Resource[]>([]);
   const [loadingResources, setLoadingResources] = useState(true);
   const [resourceError, setResourceError] = useState('');
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,7 +29,26 @@ export default function Page() {
 
   useEffect(() => {
     loadResources();
+    loadUser();
+
+    if (!supabase) return;
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCurrentUser(session?.user ?? null);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
+
+  async function loadUser() {
+    if (!supabase) return;
+    const { data } = await supabase.auth.getUser();
+    setCurrentUser(data.user ?? null);
+  }
 
   async function loadResources() {
     if (!supabase) {
@@ -43,6 +63,7 @@ export default function Page() {
     const { data, error } = await supabase
       .from('resources')
       .select('*')
+      .or('is_deleted.is.false,is_deleted.is.null')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -77,7 +98,7 @@ export default function Page() {
         } else {
           setUploadMessage('No text could be extracted from the DOCX. You can still type or paste text below.');
         }
-      } catch (err) {
+      } catch (_err) {
         setUploadError('Failed to extract DOCX text.');
       } finally {
         setExtracting(false);
@@ -106,13 +127,13 @@ export default function Page() {
     let fileName: string | null = null;
 
     if (file) {
-      const path = `${Date.now()}-${file.name}`;
-      const { error: uploadError } = await supabase.storage
+      const path = ${Date.now()}-${file.name};
+      const { error: uploadStorageError } = await supabase.storage
         .from('resources')
         .upload(path, file);
 
-      if (uploadError) {
-        setUploadError(uploadError.message);
+      if (uploadStorageError) {
+        setUploadError(uploadStorageError.message);
         setUploading(false);
         return;
       }
@@ -124,23 +145,47 @@ export default function Page() {
 
     const alias = auth.user.email?.split('@')[0] || 'Member';
 
-    const { error } = await supabase.from('resources').insert({
-      title: fileName || 'Untitled',
-      summary: text.slice(0, 200) || 'No summary provided.',
-      area: 'General',
-      jurisdiction: 'Australia',
-      type: file ? 'DOCX Upload' : 'Text Entry',
-      current_content: text,
-      original_file_url: url,
-      original_file_name: fileName,
-      created_by: auth.user.id,
-      author_alias: alias,
-    });
+    // STEP 1: create the main resource row
+    const { data: insertedResource, error: resourceInsertError } = await supabase
+      .from('resources')
+      .insert({
+        title: fileName || 'Untitled',
+        summary: text.slice(0, 200) || 'No summary provided.',
+        area: 'General',
+        jurisdiction: 'Australia',
+        type: file ? 'DOCX Upload' : 'Text Entry',
+        current_content: text,
+        original_file_url: url,
+        original_file_name: fileName,
+        created_by: auth.user.id,
+        author_alias: alias,
+      })
+      .select()
+      .single();
 
-    if (error) {
-      setUploadError(error.message);
+    if (resourceInsertError) {
+      setUploadError(resourceInsertError.message);
       setUploading(false);
       return;
+    }
+
+    // STEP 2: if there is an uploaded original file, create version 1 in resource_files
+    if (insertedResource && url && fileName) {
+      const { error: versionInsertError } = await supabase.from('resource_files').insert({
+        resource_id: insertedResource.id,
+        file_url: url,
+        file_name: fileName,
+        version_number: 1,
+        uploaded_by: auth.user.id,
+        uploader_alias: alias,
+        note: 'Initial upload',
+      });
+
+      if (versionInsertError) {
+        setUploadError(versionInsertError.message);
+        setUploading(false);
+        return;
+      }
     }
 
     setUploadMessage('Uploaded successfully.');
@@ -167,7 +212,28 @@ export default function Page() {
       return;
     }
 
+    const { data: userData } = await supabase.auth.getUser();
+    setCurrentUser(userData.user ?? null);
     setAuthMessage('Logged in.');
+    setTab('home');
+  }
+
+  async function logout() {
+    if (!supabase) {
+      setAuthError('Supabase is not connected.');
+      return;
+    }
+
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      setAuthError(error.message);
+      return;
+    }
+
+    setCurrentUser(null);
+    setAuthMessage('Logged out.');
+    setTab('home');
   }
 
   return (
@@ -187,18 +253,29 @@ export default function Page() {
         <button onClick={() => setTab('upload')} style={{ ...navBtn, ...(tab === 'upload' ? activeBtn : {}) }}>
           UPLOAD
         </button>
-        <button onClick={() => setTab('login')} style={{ ...navBtn, ...(tab === 'login' ? activeBtn : {}) }}>
-          LOGIN
-        </button>
+
+        {currentUser ? (
+          <button onClick={logout} style={navBtn}>
+            LOGOUT
+          </button>
+        ) : (
+          <button onClick={() => setTab('login')} style={{ ...navBtn, ...(tab === 'login' ? activeBtn : {}) }}>
+            LOGIN
+          </button>
+        )}
       </div>
+
+      {currentUser?.email ? (
+        <div style={signedInText}>Signed in as {currentUser.email}</div>
+      ) : null}
 
       {tab === 'home' && (
         <>
           <section style={heroCard}>
             <h2 style={heading}>Welcome</h2>
             <p style={textStyle}>
-              Upload a Word document, preserve the original file, extract its contents into a live editable working copy,
-              and let others discuss and refine the text without re-uploading documents.
+              Upload a Word document, preserve the original file, extract its contents into a live editable
+              working copy, and let others discuss and refine the text without re-uploading documents.
             </p>
           </section>
 
@@ -338,11 +415,18 @@ const subtitle: React.CSSProperties = {
   fontSize: 18,
 };
 
+const signedInText: React.CSSProperties = {
+  textAlign: 'center',
+  color: '#475569',
+  marginBottom: 18,
+  fontSize: 14,
+};
+
 const nav: React.CSSProperties = {
   display: 'flex',
   justifyContent: 'center',
   gap: 12,
-  marginBottom: 30,
+  marginBottom: 22,
   flexWrap: 'wrap',
 };
 
