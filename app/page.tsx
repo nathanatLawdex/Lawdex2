@@ -145,7 +145,6 @@ export default function Page() {
 
     const alias = auth.user.email?.split('@')[0] || 'Member';
 
-    // STEP 1: create the main resource row
     const { data: insertedResource, error: resourceInsertError } = await supabase
       .from('resources')
       .insert({
@@ -169,7 +168,6 @@ export default function Page() {
       return;
     }
 
-    // STEP 2: if there is an uploaded original file, create version 1 in resource_files
     if (insertedResource && url && fileName) {
       const { error: versionInsertError } = await supabase.from('resource_files').insert({
         resource_id: insertedResource.id,
