@@ -127,7 +127,7 @@ export default function Page() {
     let fileName: string | null = null;
 
     if (file) {
-      const path = ${Date.now()}-${file.name};
+      const path = `${Date.now()}-${file.name}`;
       const { error: uploadStorageError } = await supabase.storage
         .from('resources')
         .upload(path, file);
