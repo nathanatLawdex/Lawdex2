@@ -43,7 +43,7 @@ export default function RootLayout({
         <div style={nav}>
           <Link href="/" style={navBtn}>HOME</Link>
           <Link href="/" style={navBtn}>LIBRARY</Link>
-          <Link href="/principles" style={navBtn}>PRINCIPLES</Link>
+          <Link href="/" style={navBtn}>PRINCIPLES</Link>
           <Link href="/" style={navBtn}>UPLOAD</Link>
 
           {user ? (
