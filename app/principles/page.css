@@ -1,0 +1,77 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabase';
+
+type Principle = {
+  id: string;
+  title: string;
+  content: string;
+  created_at: string;
+};
+
+export default function PrinciplesPage() {
+  const [principles, setPrinciples] = useState<Principle[]>([]);
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function load() {
+    if (!supabase) return;
+
+    const { data } = await supabase
+      .from('principles')
+      .select('*')
+      .order('title', { ascending: true });
+
+    setPrinciples(data || []);
+  }
+
+  // Group alphabetically
+  const grouped = principles.reduce((acc: any, p) => {
+    const letter = p.title[0].toUpperCase();
+    if (!acc[letter]) acc[letter] = [];
+    acc[letter].push(p);
+    return acc;
+  }, {});
+
+  return (
+    <main style={wrap}>
+      <h1>Legal Principles</h1>
+
+      {Object.keys(grouped).sort().map((letter) => (
+        <div key={letter}>
+          <h2 style={letterStyle}>{letter}</h2>
+
+          {grouped[letter].map((p: Principle) => (
+            <div key={p.id} style={card}>
+              <div
+                style={title}
+                onClick={() => setExpanded(expanded === p.id ? null : p.id)}
+              >
+                {p.title}
+              </div>
+
+              {expanded === p.id && (
+                <div style={content}>{p.content}</div>
+              )}
+            </div>
+          ))}
+        </div>
+      ))}
+    </main>
+  );
+}
+
+const wrap = { maxWidth: 900, margin: '0 auto', padding: 20 };
+const letterStyle = { marginTop: 30 };
+const card = {
+  border: '1px solid #ddd',
+  padding: 12,
+  borderRadius: 8,
+  marginBottom: 8,
+};
+const title = { fontWeight: 700, cursor: 'pointer' };
+const content = { marginTop: 10, color: '#444', whiteSpace: 'pre-wrap' };
